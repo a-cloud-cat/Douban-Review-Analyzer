@@ -1,0 +1,28 @@
+# --- 核心 Web 框架 ---
+fastapi
+uvicorn[standard]
+python-dotenv
+pydantic
+
+# --- 数据库与 ORM ---
+sqlalchemy
+pymysql
+cryptography
+
+# --- 数据采集与解析 ---
+requests
+beautifulsoup4
+lxml
+uncurl
+
+# --- 数据分析与可视化 ---
+pandas
+numpy
+matplotlib
+streamlit
+wordcloud
+jieba
+
+# --- 机器学习 ---
+scikit-learn
+joblib
