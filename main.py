@@ -4,6 +4,8 @@ import subprocess
 
 
 from src.utils.path_utils import get_project_root, get_data_dir, get_config_dir, ensure_dir
+from src.utils.logger import get_logger
+
 PROJECT_ROOT = get_project_root()
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -14,16 +16,19 @@ from engines.preprocess.cleaner import cleaner
 from engines.clustering.k_means_model import KMeansAnalyzer
 from src.utils.path_utils import get_config_dir
 
+# 获取日志器
+logger = get_logger("main")
+
 def load_config(file_name):
     config_path = get_config_dir() / file_name
     if not config_path.exists():
-        print(f"错误：找不到配置文件 {config_path}")
+        logger.error(f"找不到配置文件 {config_path}")
         return None
     with open(config_path, 'r', encoding='utf-8') as f:
         return f.read().strip()
 
 def start_spider_pipeline(douban_id): # https://movie.douban.com/subject/36968879/ 即最后一串数字拿来标注用的
-    print(f"\n[开始抓取任务] ID: {douban_id}")
+    logger.info(f"开始抓取任务 ID: {douban_id}")
     curl_string = load_config("spider_config.txt")
     if not curl_string: return
     spider = DoubanSpider()
@@ -34,28 +39,29 @@ def start_spider_pipeline(douban_id): # https://movie.douban.com/subject/3696887
             json.dump(items, f, ensure_ascii=False, indent=4) # dump倾倒
         data_service.save_reviews(douban_id, items)
         cleaner.process_uncleaned_reviews(batch_size=500)
-        print("数据抓取与分词清洗完成！")
+        logger.info("数据抓取与分词清洗完成！")
 
 def start_clustering_pipeline():
+    logger.info("开始执行聚类分析")
     analyzer = KMeansAnalyzer(n_clusters=3)
     analyzer.run_analysis()
 
 def start_web_dashboard():
-    print("\n[启动可视化看板] 正在打开浏览器...")
+    logger.info("启动可视化看板，正在打开浏览器...")
     dashboard_path = PROJECT_ROOT / "src" / "api" / "dashboard.py"
 
     try:
         subprocess.run(["streamlit", "run", dashboard_path])
     except KeyboardInterrupt:
-        print("\n看板服务已停止。")
+        logger.info("看板服务已停止。")
 
 def clear_data():
     from src.db.base import engine
     from src.db.models import Base
-    print("\n[警告] 正在重置数据库...")
+    logger.warning("正在重置数据库...")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
-    print("数据库已重置。")
+    logger.info("数据库已重置。")
 
 def main_menu():
     default_id = "36968879"
@@ -78,7 +84,10 @@ def main_menu():
         elif choice == '3': start_web_dashboard()
         elif choice == '4':
             if input("确定清空吗？(y/n): ").lower() == 'y': clear_data()
-        elif choice == '5': break
+        elif choice == '5': 
+            logger.info("程序已退出。")
+            break
 
 if __name__ == "__main__":
+    logger.info("Douban-Insight 系统启动")
     main_menu()

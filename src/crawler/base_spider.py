@@ -1,5 +1,9 @@
 import re        # 正则表达式
 import requests  # 网络请求
+from src.utils.logger import get_logger
+
+# 获取日志器
+logger = get_logger("base_spider")
 
 class BaseSpider:
     def __init__(self):
@@ -36,13 +40,24 @@ class BaseSpider:
         return target_url, headers, cookies
 
     def get_html_by_curl(self, raw_curl: str):
+        try:
+            url, headers, cookies = self._parse_curl(raw_curl)
+            logger.info(f"正在请求 URL: {url}")
+            
+            headers.update(self.default_headers) # update:将后来的字典合并进前面的字典，相同覆盖不同追加
+            response = requests.get(url, headers=headers, cookies=cookies, timeout=15)
+            response.raise_for_status()  # 检查HTTP状态码
+            
+            logger.info(f"请求成功，状态码: {response.status_code}")
+            
+            if "application/json" in response.headers.get("Content-Type", ""):
+                return response.json().get("html", "")
 
-        url, headers, cookies = self._parse_curl(raw_curl)
-        headers.update(self.default_headers) # update:将后来的字典合并进前面的字典，相同覆盖不同追加
-        response = requests.get(url, headers=headers, cookies=cookies, timeout=15)
-
-        if "application/json" in response.headers.get("Content-Type", ""):
-            return response.json().get("html", "")
-
-        # 如果是标准的网页返回，直接把 response 里的 text（也就是网页 HTML 源代码）返回
-        return response.text
+            # 如果是标准的网页返回，直接把 response 里的 text（也就是网页 HTML 源代码）返回
+            return response.text
+        except requests.RequestException as e:
+            logger.error(f"网络请求失败: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"解析响应失败: {e}")
+            return None

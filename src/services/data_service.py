@@ -1,5 +1,9 @@
 from src.db.base import SessionLocal
 from src.db.models import Review
+from src.utils.logger import get_logger
+
+# 获取日志器
+logger = get_logger("data_service")
 
 class DataService:
     def __init__(self):
@@ -21,11 +25,11 @@ class DataService:
                 count += 1
 
             db.commit()
-            print(f"存入成功！电影 ID: {douban_id} 新增 {count} 条评论。")
+            logger.info(f"存入成功！电影 ID: {douban_id} 新增 {count} 条评论。")
             return count
         except Exception as e:
             db.rollback()
-            print(f"数据库写入异常: {e}")
+            logger.error(f"数据库写入异常: {e}")
             return 0
         finally:
             db.close()

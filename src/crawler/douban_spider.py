@@ -2,6 +2,10 @@ import json
 import re
 from bs4 import BeautifulSoup
 from src.crawler.base_spider import BaseSpider
+from src.utils.logger import get_logger
+
+# 获取日志器
+logger = get_logger("douban_spider")
 
 
 class DoubanSpider(BaseSpider):
@@ -9,7 +13,7 @@ class DoubanSpider(BaseSpider):
         raw_response = self.get_html_by_curl(raw_curl)
 
         if not raw_response:
-            print("错误：未能获取到任何响应内容。 怀疑：网络链接失败等")
+            logger.error("未能获取到任何响应内容。 怀疑：网络链接失败等")
             return []
 
         try:
@@ -18,7 +22,7 @@ class DoubanSpider(BaseSpider):
 
             # 豆瓣的异步接口会把 HTML 塞在一个叫 "html" 的字段里
             if isinstance(data, dict) and "html" in data:
-                print("成功识别：这是一个 JSON 异步接口，正在解析内部 HTML 片段...")
+                logger.info("成功识别：这是一个 JSON 异步接口，正在解析内部 HTML 片段...")
                 # 递归：把 JSON 里的那部分 HTML 提取出来再解析
                 return self._parse_html_logic(data["html"])
         except (json.JSONDecodeError, TypeError):
@@ -26,7 +30,7 @@ class DoubanSpider(BaseSpider):
             pass
 
         # 3. 默认处理：如果不是 JSON，就当作普通 HTML 页面处理
-        print("成功识别：这是一个常规 HTML 页面...")
+        logger.info("成功识别：这是一个常规 HTML 页面...")
         return self._parse_html_logic(raw_response)
 
     @staticmethod
@@ -36,7 +40,7 @@ class DoubanSpider(BaseSpider):
         comment_nodes = soup.select(".comment-item")
 
         if not comment_nodes:
-            print(f"警告：在 HTML 中未找到 '.comment-item' 节点。")
+            logger.warning("在 HTML 中未找到 '.comment-item' 节点。")
             return []
 
         parsed_items = []
@@ -67,5 +71,5 @@ class DoubanSpider(BaseSpider):
                 "star": star_val
             })
 
-        print(f"解析成功！本次共提取到 {len(parsed_items)} 条评论数据。")
+        logger.info(f"解析成功！本次共提取到 {len(parsed_items)} 条评论数据。")
         return parsed_items

@@ -4,11 +4,16 @@ from src.utils.path_utils import get_data_dir, ensure_dir
 from sklearn.cluster import KMeans
 from src.db.base import SessionLocal
 from src.db.models import Review
+from src.utils.logger import get_logger
+
+# 获取日志器
+logger = get_logger("kmeans")
 
 class KMeansAnalyzer:
     def __init__(self, n_clusters=3): # clusters簇
         self.n_clusters = n_clusters
-        self.vectorizer = TfidfVectorizer(max_features=1000) # Vectorizer矢量化器，本处指只取最重要的 1000 个词
+        # Vectorizer矢量化器，本处指只取最重要的 1000 个词
+        self.vectorizer = TfidfVectorizer(max_features=1000)
         # 创建 K-Means 聚类模型（自动分组工具）：分三组，使用++优化模型，固定随机种子，试十次取最优
         self.model = KMeans(n_clusters=self.n_clusters, init='k-means++', random_state=42, n_init=10)
 
@@ -22,21 +27,22 @@ class KMeansAnalyzer:
                     for r in reviews]
 
             if len(data) < self.n_clusters:
-                print(f"数据量不足（当前有效数据: {len(data)}），无法进行聚类。")
+                logger.warning(f"数据量不足（当前有效数据: {len(data)}），无法进行聚类。")
                 return
 
             df = pd.DataFrame(data) # 形成一个excel表
 
             # TF-IDF 向量化：将文本转为机器能理解的数值特征
-            print(f"正在生成 TF-IDF 特征矩阵...")
+            logger.info("正在生成 TF-IDF 特征矩阵...")
             tfidf_matrix = self.vectorizer.fit_transform(df['text'])
 
             # 运行 K-means 算法：寻找数据的自然聚拢点
-            print(f"正在计算 {self.n_clusters} 个分簇结果...")
+            logger.info(f"正在计算 {self.n_clusters} 个分簇结果...")
             self.model.fit(tfidf_matrix)
-            df['cluster'] = self.model.labels_ # df[名字]=【加列】，加行要完整写。本处是将处理结果加入表格
+             # df[名字]=【加列】，加行要完整写。本处是将处理结果加入表格
+            df['cluster'] = self.model.labels_
 
-            print("正在同步 cluster_id 到数据库字段...")
+            logger.info("正在同步 cluster_id 到数据库字段...")
             for index, row in df.iterrows():
                 db.query(Review).filter(Review.id == int(row['id'])).update(
                     {"cluster_id": int(row['cluster'])}
@@ -47,13 +53,13 @@ class KMeansAnalyzer:
             export_path = processed_dir / "clustered_reviews.csv"
             df.to_csv(export_path, index=False, encoding='utf-8-sig')
 
-            print(f"聚类成功！结果已保存至: {export_path}")
-            print("\n各簇分布统计:")
-            print(df['cluster'].value_counts())
+            logger.info(f"聚类成功！结果已保存至: {export_path}")
+            logger.info("各簇分布统计:")
+            logger.info(df['cluster'].value_counts().to_dict())
 
         except Exception as e:
             db.rollback()
-            print(f"聚类异常: {e}")
+            logger.error(f"聚类异常: {e}")
         finally:
             db.close()
 

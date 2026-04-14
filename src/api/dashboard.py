@@ -6,6 +6,11 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 from src.utils.path_utils import get_project_root
+from src.utils.logger import get_logger
+
+# 获取日志器
+logger = get_logger("dashboard")
+
 root_dir = get_project_root()
 
 if root_dir not in sys.path:

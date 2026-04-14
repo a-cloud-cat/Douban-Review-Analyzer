@@ -1,8 +1,9 @@
 import sys
 from pathlib import Path
-import logging
 
 from src.utils.path_utils import get_project_root
+from src.utils.logger import get_logger
+
 ROOT_DIR = get_project_root()
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
@@ -11,7 +12,8 @@ if str(ROOT_DIR) not in sys.path:
 from src.core.config import settings
 from src.db.base import Base, engine
 
-logger = logging.getLogger(settings.PROJECT_NAME)
+# 获取日志器
+logger = get_logger("init_db")
 
 def init_db():
     logger.info(f"--- [{settings.PROJECT_NAME}] 正在初始化数据库表结构 ---")

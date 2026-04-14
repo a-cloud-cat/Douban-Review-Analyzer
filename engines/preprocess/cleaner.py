@@ -4,6 +4,10 @@ from pathlib import Path
 from src.db.base import SessionLocal
 from src.db.models import Review
 from src.utils.path_utils import get_project_root, get_config_dir
+from src.utils.logger import get_logger
+
+# 获取日志器
+logger = get_logger("cleaner")
 
 class DataCleaner:
     def __init__(self):
@@ -13,10 +17,10 @@ class DataCleaner:
         user_dict_path = self.config_dir / "user_dict.txt"
         if user_dict_path.exists():
             jieba.load_userdict(str(user_dict_path))
-            print(f"已加载自定义词典: {user_dict_path.name}")
+            logger.info(f"已加载自定义词典: {user_dict_path.name}")
 
         self.stop_words = self._load_stopwords()
-        print(f"已加载停用词，数量：{len(self.stop_words)}")
+        logger.info(f"已加载停用词，数量：{len(self.stop_words)}")
 
     def _load_stopwords(self):
         stop_words = set() # set（集合）查找速度快,且自动去重
@@ -53,18 +57,18 @@ class DataCleaner:
             reviews = query.limit(batch_size).all()
 
             if not reviews:
-                print("✨ 评论均已清洗完毕。")
+                logger.info("评论均已清洗完毕。")
                 return
 
             for r in reviews:
                 r.cleaned_content = self.segment(r.content)
 
             db.commit()
-            print(f"✅ 成功更新 {len(reviews)} 条数据")
+            logger.info(f"成功更新 {len(reviews)} 条数据")
 
         except Exception as e:
             db.rollback() # 回滚放弃刚刚所有修改
-            print(f"❌ 异常: {e}")
+            logger.error(f"异常: {e}")
         finally:
             db.close()
 
