@@ -1,18 +1,15 @@
-import os
 import sys
 import streamlit as st
 import pandas as pd
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
+from pathlib import Path
 
-# ==========================================
-# 🛠️ 路径适配 (防止 ModuleNotFoundError)
-# ==========================================
-current_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.dirname(os.path.dirname(current_dir))
+from src.utils.path_utils import get_project_root
+root_dir = get_project_root()
 
 if root_dir not in sys.path:
-    sys.path.insert(0, root_dir)
+    sys.path.insert(0, str(root_dir))
 
 try:
     from src.db.base import SessionLocal
@@ -22,7 +19,7 @@ except ImportError as e:
     st.stop()
 
 # ==========================================
-# 🎨 页面配置
+#页面配置
 # ==========================================
 st.set_page_config(
     page_title="Douban-Insight 大数据分析看板",
@@ -98,7 +95,7 @@ else:
         if text_data.strip():
             # 解决中文乱码：优先匹配 Windows 自带微软雅黑
             font = "C:/Windows/Fonts/msyh.ttc"
-            if not os.path.exists(font):
+            if not Path(font).exists():
                 font = None # 容错
 
             # 修复：直接使用 .generate(text_data)，不加 all_text= 参数

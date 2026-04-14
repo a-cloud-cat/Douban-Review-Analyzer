@@ -3,12 +3,14 @@ import jieba
 from pathlib import Path
 from src.db.base import SessionLocal
 from src.db.models import Review
+from src.utils.path_utils import get_project_root, get_config_dir
 
 class DataCleaner:
     def __init__(self):
-        self.BASE_DIR = Path(__file__).resolve().parent.parent.parent
+        self.BASE_DIR = get_project_root()
+        self.config_dir = get_config_dir()
 
-        user_dict_path = self.BASE_DIR / "config" / "user_dict.txt"
+        user_dict_path = self.config_dir / "user_dict.txt"
         if user_dict_path.exists():
             jieba.load_userdict(str(user_dict_path))
             print(f"已加载自定义词典: {user_dict_path.name}")
@@ -18,7 +20,7 @@ class DataCleaner:
 
     def _load_stopwords(self):
         stop_words = set() # set（集合）查找速度快,且自动去重
-        stop_path = self.BASE_DIR / "config" / "stopwords.txt"
+        stop_path = self.config_dir / "stopwords.txt"
 
         #读取停用词
         if stop_path.exists():

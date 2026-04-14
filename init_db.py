@@ -2,7 +2,8 @@ import sys
 from pathlib import Path
 import logging
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+from src.utils.path_utils import get_project_root
+ROOT_DIR = get_project_root()
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 

@@ -1,31 +1,36 @@
 import sys
-import os
 import json
 import subprocess
 
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
+from src.utils.path_utils import get_project_root, get_data_dir, get_config_dir, ensure_dir
+PROJECT_ROOT = get_project_root()
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.crawler.douban_spider import DoubanSpider
 from src.services.data_service import data_service
 from engines.preprocess.cleaner import cleaner
 from engines.clustering.k_means_model import KMeansAnalyzer
+from src.utils.path_utils import get_config_dir
 
-def load_config(file_path):
-    if not os.path.exists(file_path):
-        print(f"错误：找不到配置文件 {file_path}")
+def load_config(file_name):
+    config_path = get_config_dir() / file_name
+    if not config_path.exists():
+        print(f"错误：找不到配置文件 {config_path}")
         return None
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(config_path, 'r', encoding='utf-8') as f:
         return f.read().strip()
 
 def start_spider_pipeline(douban_id): # https://movie.douban.com/subject/36968879/ 即最后一串数字拿来标注用的
     print(f"\n[开始抓取任务] ID: {douban_id}")
-    curl_string = load_config("config/spider_config.txt")
+    curl_string = load_config("spider_config.txt")
     if not curl_string: return
     spider = DoubanSpider()
     items = spider.fetch_data(curl_string)
     if items:
-        os.makedirs("data/raw", exist_ok=True)
-        with open(f"data/raw/raw_{douban_id}.json", "w", encoding="utf-8") as f:
+        raw_dir = ensure_dir(get_data_dir("raw"))
+        with open(raw_dir / f"raw_{douban_id}.json", "w", encoding="utf-8") as f:
             json.dump(items, f, ensure_ascii=False, indent=4) # dump倾倒
         data_service.save_reviews(douban_id, items)
         cleaner.process_uncleaned_reviews(batch_size=500)
@@ -37,7 +42,7 @@ def start_clustering_pipeline():
 
 def start_web_dashboard():
     print("\n[启动可视化看板] 正在打开浏览器...")
-    dashboard_path = os.path.join("src", "api", "dashboard.py")
+    dashboard_path = PROJECT_ROOT / "src" / "api" / "dashboard.py"
 
     try:
         subprocess.run(["streamlit", "run", dashboard_path])

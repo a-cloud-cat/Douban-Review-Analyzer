@@ -1,9 +1,11 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
-# 获取当前文件的父级的父级（即根目录）
-root_path = Path(__file__).resolve().parent.parent
-sys.path.append(str(root_path))
+from src.utils.path_utils import get_project_root
+root_path = get_project_root()
+
+if str(root_path) not in sys.path:
+    sys.path.insert(0, str(root_path))
 
 from src.db.base import engine, Base
 

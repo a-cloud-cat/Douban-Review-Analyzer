@@ -1,8 +1,11 @@
 import sys
-import os
 import joblib
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.utils.path_utils import get_project_root, ensure_dir
+PROJECT_ROOT = get_project_root()
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.db.base import SessionLocal
 from src.db.models import Review
@@ -32,9 +35,8 @@ def run_offline_training():
         print(f"训练完成！聚类标签已同步至数据库字段 cluster_id。")
 
 
-        model_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "engines", "models")
-        os.makedirs(model_dir, exist_ok=True) # 文件夹存在就跳过不存在创建
-        joblib.dump(k_means_analyzer.model, os.path.join(model_dir, "k_means_latest.pkl"))
+        model_dir = ensure_dir(PROJECT_ROOT / "engines" / "models")
+        joblib.dump(k_means_analyzer.model, model_dir / "k_means_latest.pkl")
 
         print(f"模型已序列化至: {model_dir}")
 

@@ -1,6 +1,6 @@
 import pandas as pd # 用于处理（csv /excel）等
-import os
 from sklearn.feature_extraction.text import TfidfVectorizer
+from src.utils.path_utils import get_data_dir, ensure_dir
 from sklearn.cluster import KMeans
 from src.db.base import SessionLocal
 from src.db.models import Review
@@ -43,8 +43,8 @@ class KMeansAnalyzer:
                 )
             db.commit()
 
-            os.makedirs("data/processed", exist_ok=True)
-            export_path = "data/processed/clustered_reviews.csv"
+            processed_dir = ensure_dir(get_data_dir("processed"))
+            export_path = processed_dir / "clustered_reviews.csv"
             df.to_csv(export_path, index=False, encoding='utf-8-sig')
 
             print(f"聚类成功！结果已保存至: {export_path}")

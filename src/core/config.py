@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-#自适应路径寻址：在任意文件启动都可找到env，减少硬编码
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+from src.utils.path_utils import get_project_root
+BASE_DIR = get_project_root()
 env_path = BASE_DIR / ".env"
 
 if env_path.exists():
