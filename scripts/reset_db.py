@@ -14,7 +14,20 @@ from src.db.base import engine, Base
 # 获取日志器
 logger = get_logger("reset_db")
 
+
 def reset_database():
+    """
+    重置数据库：删除所有表并重新创建空表，实现数据清空
+
+    Args:
+        无参数
+
+    Returns:
+        无返回值
+
+    Raises:
+        Exception: 数据库连接异常、表删除/创建失败时抛出
+    """
     logger.info("正在连接数据库进行重置操作")
 
     try:

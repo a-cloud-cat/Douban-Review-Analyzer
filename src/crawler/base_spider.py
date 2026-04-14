@@ -6,15 +6,32 @@ from src.utils.logger import get_logger
 logger = get_logger("base_spider")
 
 class BaseSpider:
+    """
+    基础爬虫工具类，提供 curl 解析、HTTP 请求、网页/接口数据获取功能
+    """
+
     def __init__(self):
+        """
+        初始化基础爬虫，设置默认请求头伪装浏览器
+        """
         #伪装HTTP 头部 (Headers)：这是应用层协议。用浏览器访问豆瓣时，浏览器会发送一段文字给服务器，说：“我是 Chrome，我想看这个网页”。
         self.default_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
 
-    #获取 网址 URL、请求头 headers、登录凭证 cookies
-    @staticmethod
-    def _parse_curl(curl_str: str):
+    def _parse_curl(self, curl_str: str):
+        """
+        从浏览器复制的 curl 命令中解析出 URL、请求头、Cookies
+
+        Args:
+            curl_str: 浏览器复制的原始 curl 字符串
+
+        Returns:
+            tuple: (url, headers, cookies)
+
+        Raises:
+            Exception: 解析失败时抛出异常
+        """
         #re.search(正则规则, 要搜索的文本)
         url_match = re.search(r"['\"](?P<url>https?://[^'\"]+)['\"]", curl_str)
         target_url = url_match.group("url") if url_match else re.search(r"https?://[^\s'\"]+", curl_str).group(0)
@@ -40,11 +57,25 @@ class BaseSpider:
         return target_url, headers, cookies
 
     def get_html_by_curl(self, raw_curl: str):
+        """
+        通过 curl 命令自动发送 GET 请求，获取网页 HTML 或 JSON 中的 html 字段
+
+        Args:
+            raw_curl: 浏览器复制的完整 curl 字符串
+
+        Returns:
+            str: 网页 HTML 内容，请求失败返回 None
+
+        Raises:
+            requests.RequestException: 网络请求异常
+            Exception: 其他解析异常
+        """
         try:
             url, headers, cookies = self._parse_curl(raw_curl)
             logger.info(f"正在请求 URL: {url}")
             
-            headers.update(self.default_headers) # update:将后来的字典合并进前面的字典，相同覆盖不同追加
+            # update:将后来的字典合并进前面的字典，相同覆盖不同追加
+            headers.update(self.default_headers)
             response = requests.get(url, headers=headers, cookies=cookies, timeout=15)
             response.raise_for_status()  # 检查HTTP状态码
             

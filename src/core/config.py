@@ -14,6 +14,11 @@ else:
 
 #若env有则以env为准，若env无则以此处setting的默认配置为准--健壮性
 class Settings:
+    """
+    系统全局配置管理类，从环境变量或 .env 文件加载配置
+    提供项目名称、调试模式、数据库连接等核心配置
+    """
+
     # : str 类型注解方便，IDE 补全和静态检查。
     # os.getenv(key：str, default=None)，key里存要查找的环境变量的名字，若查找失败返回default默认值
     PROJECT_NAME: str = os.getenv("PROJECT_NAME", "douban_insight")
@@ -32,12 +37,17 @@ class Settings:
     DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", 5))
     DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", 10))
 
-
-    # @property 作用：将方法伪装成只读属性，让外部调用像 settings.DATABASE_URL 这样简洁(不用加括号)
     @property
-    # -> str 指明返回类型为字符串，增加跨语言集成时的代码可读性。
-    # 该函数作用为按照 SQLAlchemy 要求的协议格式组装成一个完整的地址
     def DATABASE_URL(self) -> str:
+        """
+        构建 SQLAlchemy 数据库连接 URL
+
+        Returns:
+            str: 完整的 MySQL 连接字符串
+
+        Raises:
+            无异常抛出
+        """
         return (
             f"mysql+pymysql://{self.DB_USER}:{self.DB_PASS}@"
             f"{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"

@@ -20,11 +20,11 @@ try:
     from src.db.base import SessionLocal
     from src.db.models import Review
 except ImportError as e:
-    st.error(f"❌ 导入失败，请确保 src 目录下存在 __init__.py。错误: {e}")
+    st.error(f"导入失败，请确保 src 目录下存在 __init__.py。错误: {e}")
     st.stop()
 
 # ==========================================
-#页面配置
+# 页面配置
 # ==========================================
 st.set_page_config(
     page_title="Douban-Insight 大数据分析看板",
@@ -35,6 +35,18 @@ st.set_page_config(
 # 缓存数据，提升加载速度
 @st.cache_data(ttl=30)
 def load_data_from_db():
+    """
+    从数据库加载所有影评数据，并转换为 DataFrame 格式供可视化使用
+
+    Args:
+        无参数
+
+    Returns:
+        pd.DataFrame: 包含用户、评分、内容、分词结果、聚类ID的数据表
+
+    Raises:
+        无异常抛出，数据库连接在 finally 中自动关闭
+    """
     db = SessionLocal()
     try:
         reviews = db.query(Review).all()

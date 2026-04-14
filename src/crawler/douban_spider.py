@@ -9,7 +9,24 @@ logger = get_logger("douban_spider")
 
 
 class DoubanSpider(BaseSpider):
+    """
+    豆瓣电影评论爬虫，继承自 BaseSpider，支持解析 HTML / JSON 异步接口
+    自动提取用户名、评论内容、评分星级
+    """
+
     def fetch_data(self, raw_curl: str):
+        """
+        根据 curl 命令抓取豆瓣评论数据，自动识别 JSON 接口 / 普通 HTML 页面
+
+        Args:
+            raw_curl: 浏览器复制的完整 curl 请求字符串
+
+        Returns:
+            list: 解析后的评论数据列表，每条为字典格式
+
+        Raises:
+            无异常抛出，内部已捕获处理
+        """
         raw_response = self.get_html_by_curl(raw_curl)
 
         if not raw_response:
@@ -17,9 +34,10 @@ class DoubanSpider(BaseSpider):
             return []
 
         try:
-            clean_content = raw_response.strip() # strip剥夺：去除字符串最前面和最后面的空格、换行、空字符
-            data = json.loads(clean_content) # json.loads 把字符串转成 Python 的字典
-
+            # strip剥夺：去除字符串最前面和最后面的空格、换行、空字符
+            clean_content = raw_response.strip()
+            # json.loads 把字符串转成 Python 的字典
+            data = json.loads(clean_content)
             # 豆瓣的异步接口会把 HTML 塞在一个叫 "html" 的字段里
             if isinstance(data, dict) and "html" in data:
                 logger.info("成功识别：这是一个 JSON 异步接口，正在解析内部 HTML 片段...")
@@ -29,13 +47,21 @@ class DoubanSpider(BaseSpider):
             # 如果报错，说明抓回来的不是 JSON（是普通网页），直接跳过异常处理
             pass
 
-        # 3. 默认处理：如果不是 JSON，就当作普通 HTML 页面处理
+        # 默认处理：如果不是 JSON，就当作普通 HTML 页面处理
         logger.info("成功识别：这是一个常规 HTML 页面...")
         return self._parse_html_logic(raw_response)
 
     @staticmethod
     def _parse_html_logic(html_content):
+        """
+        从 HTML 中解析评论节点，提取用户名、内容、星级
 
+        Args:
+            html_content: 网页 HTML 字符串
+
+        Returns:
+            list: 结构化评论数据列表
+        """
         soup = BeautifulSoup(html_content, "html.parser")
         comment_nodes = soup.select(".comment-item")
 
@@ -46,9 +72,12 @@ class DoubanSpider(BaseSpider):
         parsed_items = []
 
         for node in comment_nodes:
-            user = node.select_one(".comment-info a") # 定位豆瓣用户名
-            content = node.select_one(".short") # 定位评论正文
-            star_tag = node.select_one('span[class*="allstar"]')# 豆瓣的星级写在 class="allstar40" 这样的属性里
+            # 定位豆瓣用户名
+            user = node.select_one(".comment-info a")
+            # 定位评论正文
+            content = node.select_one(".short")
+            # 豆瓣的星级写在 class="allstar40" 这样的属性里
+            star_tag = node.select_one('span[class*="allstar"]')
 
             if not content:
                 continue
@@ -56,7 +85,8 @@ class DoubanSpider(BaseSpider):
             # 星级转换
             star_val = 0
             if star_tag:
-                classes = star_tag.get('class', '') # 获取标签的class属性（可能是字符串）
+                # 获取标签的class属性（可能是字符串）
+                classes = star_tag.get('class', '')
                 for c in classes:
                     if 'allstar' in c:
                         try:

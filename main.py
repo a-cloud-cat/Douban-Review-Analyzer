@@ -27,7 +27,9 @@ def load_config(file_name):
     with open(config_path, 'r', encoding='utf-8') as f:
         return f.read().strip()
 
-def start_spider_pipeline(douban_id): # https://movie.douban.com/subject/36968879/ 即最后一串数字拿来标注用的
+def start_spider_pipeline(douban_id):
+    # 从配置文件中加载豆瓣电影ID
+    # https://movie.douban.com/subject/36968879/ 即最后一串数字拿来标注用的
     logger.info(f"开始抓取任务 ID: {douban_id}")
     curl_string = load_config("spider_config.txt")
     if not curl_string: return

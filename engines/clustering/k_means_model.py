@@ -9,8 +9,20 @@ from src.utils.logger import get_logger
 # 获取日志器
 logger = get_logger("kmeans")
 
+
 class KMeansAnalyzer:
-    def __init__(self, n_clusters=3): # clusters簇
+    """
+    K-Means 聚类分析器，负责对清洗后的评论文本进行自动分组
+    支持文本向量化、聚类计算、结果回写数据库、导出CSV文件
+    """
+
+    def __init__(self, n_clusters=3):
+        """
+        初始化 K-Means 聚类分析器
+
+        Args:
+            n_clusters: 聚类的分组数量（簇数），默认值为 3
+        """
         self.n_clusters = n_clusters
         # Vectorizer矢量化器，本处指只取最重要的 1000 个词
         self.vectorizer = TfidfVectorizer(max_features=1000)
@@ -18,6 +30,18 @@ class KMeansAnalyzer:
         self.model = KMeans(n_clusters=self.n_clusters, init='k-means++', random_state=42, n_init=10)
 
     def run_analysis(self):
+        """
+        执行完整的聚类分析流程：加载数据、向量化、模型训练、结果入库并导出文件
+
+        Args:
+            无参数
+
+        Returns:
+            无返回值
+
+        Raises:
+            Exception: 数据库操作或聚类过程中发生的异常
+        """
         db = SessionLocal()
         try:
             reviews = db.query(Review).filter(

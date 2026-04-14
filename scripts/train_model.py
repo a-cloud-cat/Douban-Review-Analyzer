@@ -16,7 +16,21 @@ from engines.clustering.k_means_model import k_means_analyzer
 # 获取日志器
 logger = get_logger("train_model")
 
+
 def run_offline_training():
+    """
+    执行离线模型训练：从数据库加载清洗后的数据，训练 K-Means 模型，并将聚类标签回填数据库
+    训练完成后将模型保存为 .pkl 文件
+
+    Args:
+        无参数
+
+    Returns:
+        无返回值
+
+    Raises:
+        Exception: 数据库操作、模型训练或文件保存异常
+    """
     logger.info("离线训练任务开始")
     db = SessionLocal()
     try:
@@ -33,12 +47,12 @@ def run_offline_training():
         labels = k_means_analyzer.model.labels_
 
         # 结果回填
-        for i, r in enumerate(reviews): # enumerate枚举 循环列表时，同时拿到序号（下标）+元素本身
+        # enumerate枚举 循环列表时，同时拿到序号（下标）+元素本身
+        for i, r in enumerate(reviews):
             r.cluster_id = int(labels[i])
 
         db.commit()
         logger.info("训练完成！聚类标签已同步至数据库字段 cluster_id。")
-
 
         model_dir = ensure_dir(PROJECT_ROOT / "engines" / "models")
         joblib.dump(k_means_analyzer.model, model_dir / "k_means_latest.pkl")
@@ -49,6 +63,7 @@ def run_offline_training():
         logger.error(f"训练失败: {e}")
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     run_offline_training()

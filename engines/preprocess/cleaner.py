@@ -9,8 +9,16 @@ from src.utils.logger import get_logger
 # 获取日志器
 logger = get_logger("cleaner")
 
+
 class DataCleaner:
+    """
+    数据清洗器，负责对豆瓣评论内容进行文本清洗、中文分词、去停用词，并更新数据库
+    """
+
     def __init__(self):
+        """
+        初始化数据清洗器，加载自定义词典、停用词表
+        """
         self.BASE_DIR = get_project_root()
         self.config_dir = get_config_dir()
 
@@ -23,7 +31,13 @@ class DataCleaner:
         logger.info(f"已加载停用词，数量：{len(self.stop_words)}")
 
     def _load_stopwords(self):
-        stop_words = set() # set（集合）查找速度快,且自动去重
+        """从配置文件加载停用词集合
+        
+        Returns:
+            set: 停用词集合
+        """
+        # set（集合）查找速度快,且自动去重
+        stop_words = set()
         stop_path = self.config_dir / "stopwords.txt"
 
         #读取停用词
@@ -37,18 +51,55 @@ class DataCleaner:
 
     @staticmethod
     def clean_text(text: str) -> str:
+        """
+        清洗原始文本，去除换行符、特殊符号，只保留中英文、数字、空格
+
+        Args:
+            text: 原始评论文本
+
+        Returns:
+            str: 清洗后的纯文本
+
+        Raises:
+            无异常抛出
+        """
         if not text: return ""
         text = text.replace('\n', ' ').replace('\r', ' ')
-        text = re.sub(r"[^\u4e00-\u9fa5a-zA-Z0-9\s]", "", text) # 只保留中文、英文、数字、空格
+        # 只保留中文、英文、数字、空格
+        text = re.sub(r"[^\u4e00-\u9fa5a-zA-Z0-9\s]", "", text)
         return text.strip()
 
     def segment(self, text: str) -> str:
+        """
+        执行完整文本处理流程：清洗 -> 分词 -> 去停用词 -> 空格拼接
+
+        Args:
+            text: 原始文本
+
+        Returns:
+            str: 分词并过滤后的结果字符串
+
+        Raises:
+            无异常抛出
+        """
         cleaned = self.clean_text(text)
         words = jieba.lcut(cleaned)
         filtered = [w for w in words if w not in self.stop_words and len(w.strip()) > 1]
         return " ".join(filtered)
 
     def process_uncleaned_reviews(self, batch_size=100):
+        """
+        批量处理数据库中未清洗的评论，自动分词并更新 cleaned_content 字段
+
+        Args:
+            batch_size: 每批次处理的最大条数，默认100
+
+        Returns:
+            无返回值
+
+        Raises:
+            Exception: 数据库操作或文本处理异常
+        """
         db = SessionLocal()
         try:
             query = db.query(Review).filter(
@@ -67,7 +118,8 @@ class DataCleaner:
             logger.info(f"成功更新 {len(reviews)} 条数据")
 
         except Exception as e:
-            db.rollback() # 回滚放弃刚刚所有修改
+            # 回滚放弃刚刚所有修改
+            db.rollback()
             logger.error(f"异常: {e}")
         finally:
             db.close()
