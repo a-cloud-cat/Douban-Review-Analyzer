@@ -5,6 +5,7 @@ from sklearn.cluster import KMeans
 from src.db.models import Review
 from src.utils.logger import get_logger
 from src.utils.db_utils import DatabaseSessionManager
+from src.utils.db_performance import DatabasePerformanceOptimizer
 
 # 获取日志器
 logger = get_logger("kmeans")
@@ -44,9 +45,11 @@ class KMeansAnalyzer:
         """
         try:
             with DatabaseSessionManager.get_session() as db:
-                reviews = db.query(Review).filter(
-                    (Review.cleaned_content.is_not(None)) & (Review.cleaned_content != "")
-                ).all()
+                # 批量获取已清洗的评论
+                reviews = DatabasePerformanceOptimizer.get_cleaned_reviews_batch(
+                    db=db,
+                    batch_size=1000  # 增加批量大小以提高性能
+                )
                 data = [{"id": r.id, "text": r.cleaned_content, "user": r.user_name, "star": r.star}
                         for r in reviews]
 
@@ -66,10 +69,21 @@ class KMeansAnalyzer:
                  # df[名字]=【加列】，加行要完整写。本处是将处理结果加入表格
                 df['cluster'] = self.model.labels_
 
-                logger.info("正在同步 cluster_id 到数据库字段...")
+                # 准备批量更新数据
+                updates = []
                 for index, row in df.iterrows():
-                    db.query(Review).filter(Review.id == int(row['id'])).update(
-                        {"cluster_id": int(row['cluster'])}
+                    updates.append({
+                        "id": int(row['id']),
+                        "cluster_id": int(row['cluster'])
+                    })
+                
+                # 批量更新聚类结果
+                if updates:
+                    logger.info("正在同步 cluster_id 到数据库字段...")
+                    DatabasePerformanceOptimizer.batch_update_reviews(
+                        db=db,
+                        updates=updates,
+                        batch_size=50
                     )
 
             processed_dir = ensure_dir(get_data_dir("processed"))

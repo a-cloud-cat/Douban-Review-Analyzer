@@ -1,6 +1,7 @@
 from src.db.models import Review
 from src.utils.logger import get_logger
 from src.utils.db_utils import DatabaseSessionManager
+from src.utils.db_performance import DatabasePerformanceOptimizer
 
 logger = get_logger("data_service")
 
@@ -10,18 +11,14 @@ class DataService:
 
     @staticmethod
     def save_reviews(douban_id, items):
-        count = 0
         try:
             with DatabaseSessionManager.get_session() as db:
-                for item in items:
-                    new_review = Review(
-                        douban_id=douban_id,
-                        user_name=item.get('user_name', '匿名'),
-                        star=item.get('star', 0),
-                        content=item.get('content', ''),
-                    )
-                    db.add(new_review)  # 放到“待提交”区域
-                    count += 1
+                count = DatabasePerformanceOptimizer.batch_insert_reviews(
+                    db=db,
+                    douban_id=douban_id,
+                    items=items,
+                    batch_size=50
+                )
 
             logger.info(f"存入成功！电影 ID: {douban_id} 新增 {count} 条评论。")
             return count

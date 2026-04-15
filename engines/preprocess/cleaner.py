@@ -5,6 +5,7 @@ from src.db.models import Review
 from src.utils.path_utils import get_project_root, get_config_dir
 from src.utils.logger import get_logger
 from src.utils.db_utils import DatabaseSessionManager
+from src.utils.db_performance import DatabasePerformanceOptimizer
 
 # 获取日志器
 logger = get_logger("cleaner")
@@ -102,10 +103,10 @@ class DataCleaner:
         """
         try:
             with DatabaseSessionManager.get_session() as db:
-                query = db.query(Review).filter(
-                    (Review.cleaned_content.is_(None)) | (Review.cleaned_content == "")
+                reviews = DatabasePerformanceOptimizer.get_uncleaned_reviews_batch(
+                    db=db,
+                    batch_size=batch_size
                 )
-                reviews = query.limit(batch_size).all()
 
                 if not reviews:
                     logger.info("评论均已清洗完毕。")
