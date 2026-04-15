@@ -17,8 +17,8 @@ if root_dir not in sys.path:
     sys.path.insert(0, str(root_dir))
 
 try:
-    from src.db.base import SessionLocal
     from src.db.models import Review
+    from src.utils.db_utils import DatabaseSessionManager
 except ImportError as e:
     st.error(f"导入失败，请确保 src 目录下存在 __init__.py。错误: {e}")
     st.stop()
@@ -47,21 +47,22 @@ def load_data_from_db():
     Raises:
         无异常抛出，数据库连接在 finally 中自动关闭
     """
-    db = SessionLocal()
     try:
-        reviews = db.query(Review).all()
-        data = []
-        for r in reviews:
-            data.append({
-                "用户": r.user_name,
-                "评分": r.star,
-                "内容": r.content,
-                "分词结果": r.cleaned_content,
-                "聚类ID": r.cluster_id if r.cluster_id is not None else -1
-            })
-        return pd.DataFrame(data)
-    finally:
-        db.close()
+        with DatabaseSessionManager.get_session() as db:
+            reviews = db.query(Review).all()
+            data = []
+            for r in reviews:
+                data.append({
+                    "用户": r.user_name,
+                    "评分": r.star,
+                    "内容": r.content,
+                    "分词结果": r.cleaned_content,
+                    "聚类ID": r.cluster_id if r.cluster_id is not None else -1
+                })
+            return pd.DataFrame(data)
+    except Exception as e:
+        logger.error(f"加载数据失败: {e}")
+        return pd.DataFrame()
 
 # --- 侧边栏 ---
 st.sidebar.title("🚀 控制面板")

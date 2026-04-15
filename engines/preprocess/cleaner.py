@@ -1,10 +1,10 @@
 import re
 import jieba
 from pathlib import Path
-from src.db.base import SessionLocal
 from src.db.models import Review
 from src.utils.path_utils import get_project_root, get_config_dir
 from src.utils.logger import get_logger
+from src.utils.db_utils import DatabaseSessionManager
 
 # 获取日志器
 logger = get_logger("cleaner")
@@ -100,28 +100,23 @@ class DataCleaner:
         Raises:
             Exception: 数据库操作或文本处理异常
         """
-        db = SessionLocal()
         try:
-            query = db.query(Review).filter(
-                (Review.cleaned_content.is_(None)) | (Review.cleaned_content == "")
-            )
-            reviews = query.limit(batch_size).all()
+            with DatabaseSessionManager.get_session() as db:
+                query = db.query(Review).filter(
+                    (Review.cleaned_content.is_(None)) | (Review.cleaned_content == "")
+                )
+                reviews = query.limit(batch_size).all()
 
-            if not reviews:
-                logger.info("评论均已清洗完毕。")
-                return
+                if not reviews:
+                    logger.info("评论均已清洗完毕。")
+                    return
 
-            for r in reviews:
-                r.cleaned_content = self.segment(r.content)
+                for r in reviews:
+                    r.cleaned_content = self.segment(r.content)
 
-            db.commit()
             logger.info(f"成功更新 {len(reviews)} 条数据")
 
         except Exception as e:
-            # 回滚放弃刚刚所有修改
-            db.rollback()
             logger.error(f"异常: {e}")
-        finally:
-            db.close()
 
 cleaner = DataCleaner()

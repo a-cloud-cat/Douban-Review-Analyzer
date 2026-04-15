@@ -2,9 +2,9 @@ import pandas as pd # 用于处理（csv /excel）等
 from sklearn.feature_extraction.text import TfidfVectorizer
 from src.utils.path_utils import get_data_dir, ensure_dir
 from sklearn.cluster import KMeans
-from src.db.base import SessionLocal
 from src.db.models import Review
 from src.utils.logger import get_logger
+from src.utils.db_utils import DatabaseSessionManager
 
 # 获取日志器
 logger = get_logger("kmeans")
@@ -42,36 +42,35 @@ class KMeansAnalyzer:
         Raises:
             Exception: 数据库操作或聚类过程中发生的异常
         """
-        db = SessionLocal()
         try:
-            reviews = db.query(Review).filter(
-                (Review.cleaned_content.is_not(None)) & (Review.cleaned_content != "")
-            ).all()
-            data = [{"id": r.id, "text": r.cleaned_content, "user": r.user_name, "star": r.star}
-                    for r in reviews]
+            with DatabaseSessionManager.get_session() as db:
+                reviews = db.query(Review).filter(
+                    (Review.cleaned_content.is_not(None)) & (Review.cleaned_content != "")
+                ).all()
+                data = [{"id": r.id, "text": r.cleaned_content, "user": r.user_name, "star": r.star}
+                        for r in reviews]
 
-            if len(data) < self.n_clusters:
-                logger.warning(f"数据量不足（当前有效数据: {len(data)}），无法进行聚类。")
-                return
+                if len(data) < self.n_clusters:
+                    logger.warning(f"数据量不足（当前有效数据: {len(data)}），无法进行聚类。")
+                    return
 
-            df = pd.DataFrame(data) # 形成一个excel表
+                df = pd.DataFrame(data) # 形成一个excel表
 
-            # TF-IDF 向量化：将文本转为机器能理解的数值特征
-            logger.info("正在生成 TF-IDF 特征矩阵...")
-            tfidf_matrix = self.vectorizer.fit_transform(df['text'])
+                # TF-IDF 向量化：将文本转为机器能理解的数值特征
+                logger.info("正在生成 TF-IDF 特征矩阵...")
+                tfidf_matrix = self.vectorizer.fit_transform(df['text'])
 
-            # 运行 K-means 算法：寻找数据的自然聚拢点
-            logger.info(f"正在计算 {self.n_clusters} 个分簇结果...")
-            self.model.fit(tfidf_matrix)
-             # df[名字]=【加列】，加行要完整写。本处是将处理结果加入表格
-            df['cluster'] = self.model.labels_
+                # 运行 K-means 算法：寻找数据的自然聚拢点
+                logger.info(f"正在计算 {self.n_clusters} 个分簇结果...")
+                self.model.fit(tfidf_matrix)
+                 # df[名字]=【加列】，加行要完整写。本处是将处理结果加入表格
+                df['cluster'] = self.model.labels_
 
-            logger.info("正在同步 cluster_id 到数据库字段...")
-            for index, row in df.iterrows():
-                db.query(Review).filter(Review.id == int(row['id'])).update(
-                    {"cluster_id": int(row['cluster'])}
-                )
-            db.commit()
+                logger.info("正在同步 cluster_id 到数据库字段...")
+                for index, row in df.iterrows():
+                    db.query(Review).filter(Review.id == int(row['id'])).update(
+                        {"cluster_id": int(row['cluster'])}
+                    )
 
             processed_dir = ensure_dir(get_data_dir("processed"))
             export_path = processed_dir / "clustered_reviews.csv"
@@ -82,9 +81,6 @@ class KMeansAnalyzer:
             logger.info(df['cluster'].value_counts().to_dict())
 
         except Exception as e:
-            db.rollback()
             logger.error(f"聚类异常: {e}")
-        finally:
-            db.close()
 
 k_means_analyzer = KMeansAnalyzer(n_clusters=3)

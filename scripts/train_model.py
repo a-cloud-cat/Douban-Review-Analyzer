@@ -9,8 +9,8 @@ PROJECT_ROOT = get_project_root()
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.db.base import SessionLocal
 from src.db.models import Review
+from src.utils.db_utils import DatabaseSessionManager
 from engines.clustering.k_means_model import k_means_analyzer
 
 # 获取日志器
@@ -32,26 +32,25 @@ def run_offline_training():
         Exception: 数据库操作、模型训练或文件保存异常
     """
     logger.info("离线训练任务开始")
-    db = SessionLocal()
     try:
-        reviews = db.query(Review).filter(Review.cleaned_content is not None).all()
-        if not reviews:
-            logger.error("数据库中没有清洗后的数据")
-            return
+        with DatabaseSessionManager.get_session() as db:
+            reviews = db.query(Review).filter(Review.cleaned_content is not None).all()
+            if not reviews:
+                logger.error("数据库中没有清洗后的数据")
+                return
 
-        logger.info(f"已加载 {len(reviews)} 条记录进行聚类...")
+            logger.info(f"已加载 {len(reviews)} 条记录进行聚类...")
 
-        k_means_analyzer.run_analysis()
+            k_means_analyzer.run_analysis()
 
-        # 拿到算法算出的所有分类标签（比如 0, 1, 2），labels是k算法自带的
-        labels = k_means_analyzer.model.labels_
+            # 拿到算法算出的所有分类标签（比如 0, 1, 2），labels是k算法自带的
+            labels = k_means_analyzer.model.labels_
 
-        # 结果回填
-        # enumerate枚举 循环列表时，同时拿到序号（下标）+元素本身
-        for i, r in enumerate(reviews):
-            r.cluster_id = int(labels[i])
+            # 结果回填
+            # enumerate枚举 循环列表时，同时拿到序号（下标）+元素本身
+            for i, r in enumerate(reviews):
+                r.cluster_id = int(labels[i])
 
-        db.commit()
         logger.info("训练完成！聚类标签已同步至数据库字段 cluster_id。")
 
         model_dir = ensure_dir(PROJECT_ROOT / "engines" / "models")
@@ -61,8 +60,6 @@ def run_offline_training():
 
     except Exception as e:
         logger.error(f"训练失败: {e}")
-    finally:
-        db.close()
 
 
 if __name__ == "__main__":
