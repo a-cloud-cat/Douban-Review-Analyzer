@@ -26,3 +26,6 @@ jieba
 # --- 机器学习 ---
 scikit-learn
 joblib
+
+# 测试
+pytest

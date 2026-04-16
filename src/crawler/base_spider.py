@@ -1,5 +1,8 @@
 import re        # 正则表达式
 import requests  # 网络请求
+import concurrent.futures
+import time
+from typing import List, Dict, Any, Optional
 from src.utils.logger import get_logger
 
 # 获取日志器
@@ -18,6 +21,7 @@ class BaseSpider:
         self.default_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
+        self.max_workers = 5  # 最大并发数
 
     def _parse_curl(self, curl_str: str):
         """
@@ -92,3 +96,40 @@ class BaseSpider:
         except Exception as e:
             logger.error(f"解析响应失败: {e}")
             return None
+    
+    def get_htmls_by_curls(self, raw_curls: List[str]) -> List[Optional[str]]:
+        """
+        并发处理多个 curl 命令，获取多个网页的 HTML 内容
+
+        Args:
+            raw_curls: 浏览器复制的完整 curl 字符串列表
+
+        Returns:
+            List[Optional[str]]: 网页 HTML 内容列表，请求失败返回 None
+        """
+        results = []
+        
+        def fetch_curl(raw_curl):
+            """单个 curl 请求的处理函数"""
+            return self.get_html_by_curl(raw_curl)
+        
+        logger.info(f"开始并发请求 {len(raw_curls)} 个页面")
+        start_time = time.time()
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # 提交所有任务
+            future_to_curl = {executor.submit(fetch_curl, curl): curl for curl in raw_curls}
+            
+            # 收集结果
+            for future in concurrent.futures.as_completed(future_to_curl):
+                curl = future_to_curl[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    logger.error(f"处理 curl 请求时发生异常: {e}")
+                    results.append(None)
+        
+        end_time = time.time()
+        logger.info(f"并发请求完成，耗时: {end_time - start_time:.2f} 秒")
+        return results

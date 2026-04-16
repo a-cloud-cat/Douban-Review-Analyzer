@@ -1,5 +1,6 @@
 import json
 import re
+from typing import List, Dict, Any
 from bs4 import BeautifulSoup
 from src.crawler.base_spider import BaseSpider
 from src.utils.logger import get_logger
@@ -50,6 +51,52 @@ class DoubanSpider(BaseSpider):
         # 默认处理：如果不是 JSON，就当作普通 HTML 页面处理
         logger.info("成功识别：这是一个常规 HTML 页面...")
         return self._parse_html_logic(raw_response)
+    
+    def fetch_data_concurrent(self, raw_curls: List[str]) -> List[Dict[str, Any]]:
+        """
+        并发抓取多个页面的评论数据
+
+        Args:
+            raw_curls: 浏览器复制的完整 curl 请求字符串列表
+
+        Returns:
+            list: 解析后的评论数据列表，每条为字典格式
+
+        Raises:
+            无异常抛出，内部已捕获处理
+        """
+        all_comments = []
+        
+        # 并发获取所有页面的 HTML
+        htmls = self.get_htmls_by_curls(raw_curls)
+        
+        # 解析每个页面的评论
+        for i, html in enumerate(htmls):
+            if not html:
+                logger.warning(f"第 {i+1} 个页面获取失败，跳过解析")
+                continue
+            
+            try:
+                # 尝试解析 JSON
+                clean_content = html.strip()
+                data = json.loads(clean_content)
+                if isinstance(data, dict) and "html" in data:
+                    comments = self._parse_html_logic(data["html"])
+                else:
+                    comments = self._parse_html_logic(html)
+                
+                all_comments.extend(comments)
+                logger.info(f"第 {i+1} 个页面解析完成，获取 {len(comments)} 条评论")
+            except (json.JSONDecodeError, TypeError):
+                # 不是 JSON，当作普通 HTML 处理
+                comments = self._parse_html_logic(html)
+                all_comments.extend(comments)
+                logger.info(f"第 {i+1} 个页面解析完成，获取 {len(comments)} 条评论")
+            except Exception as e:
+                logger.error(f"解析第 {i+1} 个页面时发生错误: {e}")
+        
+        logger.info(f"并发抓取完成，共获取 {len(all_comments)} 条评论")
+        return all_comments
 
     @staticmethod
     def _parse_html_logic(html_content):

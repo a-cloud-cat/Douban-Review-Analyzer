@@ -66,6 +66,42 @@ def clear_data():
     Base.metadata.create_all(bind=engine)
     logger.info("数据库已重置。")
 
+def run_tests():
+    """运行测试"""
+    logger.info("开始运行测试...")
+    try:
+        import subprocess
+        import sys
+        
+        logger.info(f"Python 路径: {sys.executable}")
+        
+        # 使用 subprocess 直接调用 pytest 命令
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "tests/", "-v"],
+            capture_output=True,
+            text=True,
+            cwd=get_project_root()
+        )
+        
+        # 输出测试结果
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr)
+        
+        # 检查是否安装了 pytest
+        if "No module named pytest" in result.stderr:
+            logger.error("未安装 pytest，请先安装: pip install -r requirements.txt")
+            logger.info("或者运行: python -m pip install pytest")
+        elif result.returncode == 0:
+            logger.info("测试通过！")
+        else:
+            logger.error(f"测试失败，退出码: {result.returncode}")
+    except Exception as e:
+        logger.error(f"运行测试时发生错误: {e}")
+        import traceback
+        logger.error(f"详细错误信息: {traceback.format_exc()}")
+
 # 独立封装日志管理菜单函数
 def log_manager_menu():
     logger.info("检查日志文件...")
@@ -116,9 +152,10 @@ def main_menu():
         print("3.启动可视化看板 (浏览器打开)")
         print("4.重置数据库 (清空所有记录)")
         print("5.日志管理功能")
-        print("6.退出程序")
+        print("6.运行测试")
+        print("7.退出程序")
         print("-" * 30)
-        choice = input("请输入选项序号: ").strip()
+        choice = input("请输入选项序号: " ).strip()
 
         if choice == '1': 
             start_spider_pipeline(TARGET_ID)
@@ -127,11 +164,13 @@ def main_menu():
         elif choice == '3': 
             start_web_dashboard()
         elif choice == '4':
-            if input("确定清空吗？(y/n): ").lower() == 'y': 
+            if input("确定清空吗？(y/n): " ).lower() == 'y': 
                 clear_data()
         elif choice == '5': 
             log_manager_menu()
         elif choice == '6': 
+            run_tests()
+        elif choice == '7': 
             logger.info("程序已退出。")
             break
         else:

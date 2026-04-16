@@ -1,6 +1,6 @@
 # Douban-Insight 豆瓣影评大数据分析系统
 
-基于 Python 的工业级豆瓣评论采集、清洗及情感聚类分析系统。
+基于 Python 的工业级豆瓣评论采集、清洗及情感聚类分析系统，提供完整的数据分析 pipeline 和可视化展示。
 
 ## 📂 项目结构
 
@@ -11,15 +11,12 @@ Douban-Insight/
 │   ├── db/                # 数据库层 (base.py, models.py)
 │   ├── crawler/           # 爬虫模块 (base_spider.py, douban_spider.py)
 │   ├── services/          # 业务服务 (data_service.py)
-│   ├── api/               # 可视化接口 (dashboard.py)
-│   └── schemas/           # 数据模型 (item_schema.py)
+│   ├── api/               # 可视化接口 (dashboard.py, endpoints.py)
+│   ├── schemas/           # 数据模型 (item_schema.py)
+│   └── utils/             # 工具函数 (logger.py, path_utils.py, etc.)
 ├── engines/               # 算法引擎
 │   ├── preprocess/        # 数据预处理 (cleaner.py)
-│   ├── clustering/        # 聚类分析 (k_means_model.py)
-│   └── classification/    # 情感分类 (sentiment_clf.py)
-├── data/                  # 数据存储
-│   ├── raw/               # 原始数据 (raw_xxx.json)
-│   └── processed/         # 处理后数据 (clustered_reviews.csv)
+│   └── clustering/        # 聚类分析 (k_means_model.py)
 ├── config/                # 配置文件
 │   ├── spider_config.txt  # 爬虫 cURL 配置
 │   ├── stopwords.txt      # 停用词表
@@ -27,20 +24,27 @@ Douban-Insight/
 ├── scripts/               # 脚本工具
 │   ├── reset_db.py        # 重置数据库
 │   └── train_model.py     # 训练模型
+├── tests/                 # 测试文件
+│   ├── test_cleaner.py    # 清洗模块测试
+│   ├── test_db_performance.py # 数据库性能测试
+│   ├── test_performance.py # 性能测试
+│   └── test_spider.py     # 爬虫测试
 ├── init_db.py             # 数据库初始化入口
 ├── main.py                # 主程序入口
-└── requirements.txt       # 依赖管理
+├── requirements.txt       # 依赖管理
+└── README.md              # 项目文档
 ```
 
 ## 🛠️ 技术栈
 
 - **后端**: Python 3.10 + FastAPI + SQLAlchemy (ORM)
 - **数据库**: MySQL 8.0
-- **爬虫**: Requests + BeautifulSoup4
+- **爬虫**: Requests + BeautifulSoup4 + Uncurl
 - **NLP 处理**: jieba 分词
 - **机器学习**: scikit-learn (K-means 聚类)
-- **数据处理**: pandas
+- **数据处理**: pandas + numpy
 - **可视化**: Streamlit + matplotlib + wordcloud
+- **测试**: pytest
 
 ## 🚀 快速开始
 
@@ -68,7 +72,10 @@ DB_MAX_OVERFLOW=10
 python init_db.py
 ```
 
-### 4. 运行主程序
+### 4. 配置爬虫
+在 `config/spider_config.txt` 文件中添加从浏览器复制的 cURL 请求，用于抓取豆瓣评论。
+
+### 5. 运行主程序
 ```bash
 python main.py
 ```
@@ -83,7 +90,9 @@ python main.py
 | 2 | 执行聚类分析 | K-Means 聚类 + 导出 CSV |
 | 3 | 启动可视化看板 | Streamlit 数据展示 |
 | 4 | 重置数据库 | 清空所有记录（需确认） |
-| 5 | 退出程序 | - |
+| 5 | 日志管理功能 | 清理、压缩日志文件 |
+| 6 | 运行测试 | 执行项目测试套件 |
+| 7 | 退出程序 | - |
 
 ## 🔀 运行流程详解
 
@@ -172,6 +181,7 @@ Streamlit 界面展示:
 |------|---------|------|
 | `src/crawler/base_spider.py` | `BaseSpider` | 基础爬虫，处理 HTTP 请求 |
 | `src/crawler/douban_spider.py` | `DoubanSpider.fetch_data()` | 抓取豆瓣评论 |
+| `src/crawler/douban_spider.py` | `DoubanSpider.fetch_data_concurrent()` | 并发抓取多个页面评论 |
 | `src/crawler/douban_spider.py` | `_parse_html_logic()` | 解析 HTML，提取评论信息 |
 
 ### 数据处理
@@ -184,6 +194,13 @@ Streamlit 界面展示:
 | `engines/preprocess/cleaner.py` | `process_uncleaned_reviews()` | 批量处理未清洗数据 |
 | `engines/clustering/k_means_model.py` | `KMeansAnalyzer.run_analysis()` | K-means 聚类分析 |
 
+### 可视化
+
+| 文件 | 类/方法 | 功能 |
+|------|---------|------|
+| `src/api/dashboard.py` | `load_data_from_db()` | 从数据库加载数据 |
+| `src/api/dashboard.py` | Streamlit 组件 | 数据可视化展示 |
+
 ### 主程序
 
 | 文件 | 函数 | 功能 |
@@ -193,6 +210,8 @@ Streamlit 界面展示:
 | `main.py` | `start_clustering_pipeline()` | 启动聚类分析 |
 | `main.py` | `start_web_dashboard()` | 启动可视化看板 |
 | `main.py` | `clear_data()` | 重置数据库 |
+| `main.py` | `run_tests()` | 运行测试套件 |
+| `main.py` | `log_manager_menu()` | 日志管理功能 |
 
 ## 🔄 完整调用链
 
@@ -224,10 +243,18 @@ Streamlit 界面展示:
     │                               └── load_data_from_db()
     │                                       └── Streamlit 展示
     │
-    └── 选项 4: 重置数据库
-            └── clear_data()
-                    ├── Base.metadata.drop_all()
-                    └── Base.metadata.create_all()
+    ├── 选项 4: 重置数据库
+    │       └── clear_data()
+    │               ├── Base.metadata.drop_all()
+    │               └── Base.metadata.create_all()
+    │
+    ├── 选项 5: 日志管理
+    │       └── log_manager_menu()
+    │               └── 日志清理/压缩功能
+    │
+    └── 选项 6: 运行测试
+            └── run_tests()
+                    └── pytest 测试套件
 ```
 
 ## 📊 数据流向
@@ -248,130 +275,90 @@ Streamlit 界面展示:
 [Streamlit 可视化看板]
 ```
 
----
+## 🎯 核心功能
 
-## 一. 理解的运行步骤（详细版）
+### 1. 智能爬虫
+- 支持从浏览器复制的 cURL 请求
+- 自动识别 JSON 接口和普通 HTML 页面
+- 并发抓取多个页面，提高采集效率
+- 提取用户名、评论内容、星级评分等关键信息
 
-### 数据库初始化
-```
-.env 配置路径(读取字符串) 
-    → config配置(组装 URL) 
-    → base配置(生成 Base&Engine) 
-    → models表配置(登记表结构)
-    → init_db（Base.metadata通过 Engine 发送 SQL落地）
-    → MySQL 物理表
-```
+### 2. 数据清洗与分词
+- 自动清洗文本，去除特殊字符
+- 使用 jieba 进行中文分词
+- 支持自定义词典和停用词表
+- 批量处理未清洗数据，优化数据库性能
 
-### 数据采集
-```
-spider_config.txt 存放 cURL 
-    → main.py 读取并传入爬虫
-    → BaseSpider 解析 cURL 提取 URL/Headers/Cookies
-    → get_html_by_curl 补全 UA 并发送 requests 请求获取原始响应
-    → DoubanSpider.fetch_data 判断响应类型，JSON 则提取内部 html，HTML 直接使用
-    → 传入_parse_html_logic 通过 BeautifulSoup 解析
-    → CSS 选择器定位评论节点、用户名、正文、星级标签
-    → 正则提取星级数字并转换为 1-5 星
-    → 封装为字典列表 parsed_items 返回
-    → data_service.save_reviews 存入数据库
-    → cleaner.process_uncleaned_reviews 清洗分词
-```
+### 3. 聚类分析
+- 使用 K-means 算法对评论进行自动分组
+- TF-IDF 文本向量化，提取关键特征
+- 结果自动更新到数据库
+- 导出 CSV 格式分析结果
 
-### 聚类分析
-```
-KMeansAnalyzer.run_analysis
-    → 从数据库读取 cleaned_content 不为空的记录
-    → TfidfVectorizer 将文本转为 TF-IDF 特征矩阵
-    → KMeans.fit 执行聚类
-    → 更新数据库 cluster_id 字段
-    → 导出 data/processed/clustered_reviews.csv
-```
+### 4. 可视化看板
+- Streamlit 交互式界面
+- 总样本量、聚类数、平均评分等关键指标
+- 聚类分布柱状图
+- 热点关键词云图
+- 原始数据明细表
 
----
+### 5. 日志管理
+- 自动记录系统运行日志
+- 支持清理和压缩日志文件
+- 按天数保留日志
 
-## 二. 一些知识点
+### 6. 测试套件
+- 完整的单元测试和性能测试
+- 确保系统稳定性和可靠性
+- 使用真实的爬取数据进行测试
 
-(1). Python类中方法的第一个参数`self`代表实例对象本身，作用是让方法能访问类里的属性和方法，是固定写法约定。
+## 📁 配置文件说明
 
-(2). 正则表达式：
-- 字符`?` = 前面那个可有可无
-- `()` = 分组抓内容
-- `(?P<名字>)` = 分组起名字
-- `[]` = 里面字符任选一个
-- `[^字符]` = 除了它，别的全都要
-- `+` = 一直抓、抓到底
-- `\s` = 空白空格
+### 1. spider_config.txt
+- 存储从浏览器复制的 cURL 请求
+- 用于爬虫抓取豆瓣评论数据
 
-(3). 修饰静态方法（`@staticmethod`）后和实例对象无关，不用 new 对象就能直接调用，使用需要加括号。
+### 2. stopwords.txt
+- 存储停用词列表
+- 用于文本分词时过滤无意义词汇
 
-修饰器(`@property`)，作用：把函数变成属性，调用写法：`xxx.方法` → 不用加括号
+### 3. user_dict.txt
+- 存储自定义词典
+- 提高分词准确性
 
-(4). `class xxx(父类)`。区别于java的extend 父类
+## 🚀 部署与运行
 
-(5). 网页处理：BeautifulSoup处理后会返回Tag对象内容，该对象自带查找功能：`select`; `select_one`; `find`; `find_all`
+### 本地开发环境
+1. 安装依赖：`pip install -r requirements.txt`
+2. 配置 `.env` 文件
+3. 初始化数据库：`python init_db.py`
+4. 运行主程序：`python main.py`
 
-(6). 健壮性：`try()` ; `except`(可以写比如`except (ValueError, AttributeError):` 执行句子，这样来避免系统报错，`as e`的话就是所有错误类型) ; `else` ; `finally`
+### 生产环境部署
+1. 配置环境变量
+2. 设置 MySQL 数据库
+3. 部署应用（可使用 uvicorn 或 gunicorn）
+4. 定时执行爬虫任务
 
-(7). 语法糖：
-- 1. 列表推导：`[结果 for 循环 if 判断]`; 没有if部分也可以，结果是数组或者字典也可以
-- 2. if三元运算符：`变量 = 满足条件时的值 if 条件 else 不满足时的值`
+## 🤝 贡献指南
 
-(8). 链式调用：如`db.query().filter().all()`
+1. Fork 项目
+2. 创建特性分支
+3. 提交更改
+4. 推送到分支
+5. 开启 Pull Request
 
-(9). 函数参数的设置，默认值一般放右边
+## 📝 注意事项
 
-(10). 拼路径不要用`.../xxx/xxx`，可能在window(用`\`)和Mac/Linux(用`/`)不兼容，要用特定path库
+- 请遵守豆瓣网站的 robots.txt 规则
+- 合理设置爬虫抓取频率，避免对服务器造成压力
+- 数据库连接信息请妥善保管，不要提交到版本控制系统
+- 定期清理日志文件，避免占用过多磁盘空间
 
----
+## 📄 许可证
 
-## 三. 模块详解
+MIT License
 
-### (1) 数据库模块
-```
-.env 配置路径 
-    → pathlib 定位文件 + load_dotenv 搬运变量 
-    → config 配置 
-    → os.getenv 提取 + 类型转换 + 拼接符合 SQLAlchemy 协议的地址 
-    → base 配置 
-    → 实例化 Engine(连接水管) 与 Base(登记簿) 
-    → models 表配置 
-    → 通过类继承将 Column 定义注册到 Base.metadata 
-    → init_db 入口 
-    → import models 激活表结构 + create_all 发送建表 SQL 
-    → MySQL 物理表
-```
+## 📞 联系我们
 
-### (2) 爬虫模块
-```
-spider_config.txt 存放 cURL 
-    → main.py 读取并传入爬虫
-    → BaseSpider 解析 cURL 提取 URL/Headers/Cookies
-    → get_html_by_curl 补全 UA 并发送 requests 请求获取原始响应
-    → DoubanSpider.fetch_data 判断响应类型，JSON 则提取内部 html，HTML 直接使用
-    → 传入_parse_html_logic 通过 BeautifulSoup 解析
-    → CSS 选择器定位评论节点、用户名、正文、星级标签
-    → 正则提取星级数字并转换为 1-5 星
-    → 封装为字典列表 parsed_items 返回
-    → 供后续入库使用
-```
-
-### (3) 数据处理模块
-```
-DataCleaner 类
-    → __init__ 加载自定义词典和停用词
-    → clean_text 清洗文本（去除特殊字符，保留中英文数字）
-    → segment 分词（jieba.lcut + 停用词过滤）
-    → process_uncleaned_reviews 批量处理未清洗数据
-```
-
-### (4) 聚类模块
-```
-KMeansAnalyzer 类
-    → __init__ 初始化 TfidfVectorizer 和 KMeans 模型
-    → run_analysis 执行完整分析流程
-        → 读取已清洗数据
-        → TF-IDF 向量化
-        → K-Means 聚类
-        → 更新数据库
-        → 导出 CSV
-```
+如有问题或建议，请通过 GitHub Issues 提交。
