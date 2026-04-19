@@ -1,5 +1,4 @@
 import pytest
-from sqlalchemy.orm import Session
 from src.db.base import SessionLocal, engine
 from src.db.models import Base
 from src.utils.db_performance import DatabasePerformanceOptimizer
@@ -12,7 +11,6 @@ def db_session():
     db = SessionLocal()
     yield db
     db.close()
-    Base.metadata.drop_all(bind=engine)
 
 
 def test_batch_insert(db_session):

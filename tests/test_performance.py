@@ -6,7 +6,7 @@ from src.utils.path_utils import get_config_dir
 
 
 def load_config(file_name):
-    """加载配置文件，与 main.py 中的实现一致"""
+    """加载配置文件"""
     config_path = get_config_dir() / file_name
     if not config_path.exists():
         return None
@@ -33,7 +33,7 @@ def test_spider_performance():
 
 
 def test_cleaner_performance():
-    """测试文本处理性能（使用真实数据）"""
+    """测试文本处理性能"""
     curl_str = load_config("spider_config.txt")
     if not curl_str:
         pytest.skip("配置文件不存在，跳过此测试")
@@ -56,7 +56,7 @@ def test_cleaner_performance():
 
 
 def test_batch_performance():
-    """测试批量处理性能（使用真实数据）"""
+    """测试批量处理性能"""
     curl_str = load_config("spider_config.txt")
     if not curl_str:
         pytest.skip("配置文件不存在，跳过此测试")

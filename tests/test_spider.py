@@ -5,7 +5,7 @@ from src.utils.path_utils import get_config_dir
 
 
 def load_config(file_name):
-    """加载配置文件，与 main.py 中的实现一致"""
+    """加载配置文件"""
     config_path = get_config_dir() / file_name
     if not config_path.exists():
         return None
@@ -27,7 +27,7 @@ def test_curl_parsing():
 
 
 def test_html_parsing():
-    """测试 HTML 解析（使用与 main.py 相同的配置）"""
+    """测试 HTML 解析"""
     spider = DoubanSpider()
 
     curl_str = load_config("spider_config.txt")
@@ -51,7 +51,7 @@ def test_html_parsing():
 
 
 def test_json_parsing():
-    """测试 JSON 解析（使用与 main.py 相同的配置）"""
+    """测试 JSON 解析"""
     spider = DoubanSpider()
     curl_str = load_config("spider_config.txt")
     

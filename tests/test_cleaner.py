@@ -1,14 +1,12 @@
 import pytest
 from engines.preprocess.cleaner import DataCleaner
-from src.utils.db_utils import DatabaseSessionManager
-from src.db.models import Review
 from src.utils.path_utils import get_config_dir
 from src.crawler.douban_spider import DoubanSpider
 from src.services.data_service import data_service
 
 
 def load_config(file_name):
-    """加载配置文件，与 main.py 中的实现一致"""
+    """加载配置文件"""
     config_path = get_config_dir() / file_name
     if not config_path.exists():
         return None

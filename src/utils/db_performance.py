@@ -1,20 +1,16 @@
 from typing import List, Dict, Any, Optional, Generator
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func
 from src.db.models import Review
 from src.utils.logger import get_logger
 
-# 获取日志器
 logger = get_logger("db_performance")
 
 class DatabasePerformanceOptimizer:
     """数据库性能优化器
     
     提供数据库操作的性能优化功能，包括：
-    - 批量操作
-    - 分页查询
-    - 索引优化
-    - 高效统计
+    - 批量操作- 分页查询- 索引优化- 高效统计
     """
     
     @staticmethod
@@ -35,8 +31,6 @@ class DatabasePerformanceOptimizer:
         # 批量插入
         for i in range(0, len(items), batch_size):
             batch = items[i:i+batch_size]
-            if not batch:
-                continue
             
             reviews = []
             for item in batch:
@@ -63,7 +57,7 @@ class DatabasePerformanceOptimizer:
         
         Args:
             db: 数据库会话
-            douban_id: 豆瓣电影ID，可选
+            douban_id: 豆瓣电影ID
             offset: 偏移量
             limit: 每页数量
         
@@ -134,7 +128,6 @@ class DatabasePerformanceOptimizer:
                 if not review_id:
                     continue
                 
-                # 移除 id 字段，只保留需要更新的字段
                 update_fields = {k: v for k, v in update.items() if k != "id"}
                 if not update_fields:
                     continue
@@ -152,7 +145,7 @@ class DatabasePerformanceOptimizer:
         
         Args:
             db: 数据库会话
-            douban_id: 豆瓣电影ID，可选
+            douban_id: 豆瓣电影ID
         
         Returns:
             Dict[str, Any]: 统计信息
@@ -189,5 +182,4 @@ class DatabasePerformanceOptimizer:
         logger.info(f"已删除 {deleted} 条评论")
         return deleted
 
-# 全局性能优化器实例
 db_perf_optimizer = DatabasePerformanceOptimizer()

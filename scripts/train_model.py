@@ -13,7 +13,7 @@ from src.db.models import Review
 from src.utils.db_utils import DatabaseSessionManager
 from engines.clustering.k_means_model import k_means_analyzer
 
-# 获取日志器
+
 logger = get_logger("train_model")
 
 
@@ -21,9 +21,6 @@ def run_offline_training():
     """
     执行离线模型训练：从数据库加载清洗后的数据，训练 K-Means 模型，并将聚类标签回填数据库
     训练完成后将模型保存为 .pkl 文件
-
-    Args:
-        无参数
 
     Returns:
         无返回值
@@ -47,7 +44,6 @@ def run_offline_training():
             labels = k_means_analyzer.model.labels_
 
             # 结果回填
-            # enumerate枚举 循环列表时，同时拿到序号（下标）+元素本身
             for i, r in enumerate(reviews):
                 r.cluster_id = int(labels[i])
 

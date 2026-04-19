@@ -15,7 +15,6 @@ from src.crawler.douban_spider import DoubanSpider
 from src.services.data_service import data_service
 from engines.preprocess.cleaner import cleaner
 from engines.clustering.k_means_model import KMeansAnalyzer
-from src.utils.path_utils import get_config_dir
 
 # 获取日志器
 logger = get_logger("main")
@@ -34,15 +33,30 @@ def start_spider_pipeline(douban_id):
     logger.info(f"开始抓取任务 ID: {douban_id}")
     curl_string = load_config("spider_config.txt")
     if not curl_string: return
+
+    while True:
+        page_input = input("请输入要抓取的页数（默认 1，每页20条评论）：").strip()
+        if not page_input:
+            max_pages = 1
+            break
+        try:
+            max_pages = int(page_input)
+            if max_pages < 1:
+                print("页数必须大于等于1，请重新输入")
+                continue
+            break
+        except ValueError:
+            print("请输入有效的数字")
+    
     spider = DoubanSpider()
-    items = spider.fetch_data(curl_string)
+    items = spider.fetch_data(curl_string, max_pages=max_pages)
     if items:
         raw_dir = ensure_dir(get_data_dir("raw"))
         with open(raw_dir / f"raw_{douban_id}.json", "w", encoding="utf-8") as f:
-            json.dump(items, f, ensure_ascii=False, indent=4) # dump倾倒
+            json.dump(items, f, ensure_ascii=False, indent=4)
         data_service.save_reviews(douban_id, items)
         cleaner.process_uncleaned_reviews(batch_size=500)
-        logger.info("数据抓取与分词清洗完成！")
+        logger.info(f"数据抓取与分词清洗完成，共获取 {len(items)} 条评论")
 
 def start_clustering_pipeline():
     logger.info("开始执行聚类分析")
@@ -70,12 +84,8 @@ def run_tests():
     """运行测试"""
     logger.info("开始运行测试...")
     try:
-        import subprocess
-        import sys
-        
         logger.info(f"Python 路径: {sys.executable}")
         
-        # 使用 subprocess 直接调用 pytest 命令
         result = subprocess.run(
             [sys.executable, "-m", "pytest", "tests/", "-v"],
             capture_output=True,
@@ -88,11 +98,9 @@ def run_tests():
             print(result.stdout)
         if result.stderr:
             print(result.stderr)
-        
-        # 检查是否安装了 pytest
+
         if "No module named pytest" in result.stderr:
-            logger.error("未安装 pytest，请先安装: pip install -r requirements.txt")
-            logger.info("或者运行: python -m pip install pytest")
+            logger.error("未安装 pytest，请先运行: pip install -r requirements.txt")
         elif result.returncode == 0:
             logger.info("测试通过！")
         else:
@@ -102,7 +110,6 @@ def run_tests():
         import traceback
         logger.error(f"详细错误信息: {traceback.format_exc()}")
 
-# 独立封装日志管理菜单函数
 def log_manager_menu():
     logger.info("检查日志文件...")
     stats = log_manager.get_log_statistics()
@@ -142,10 +149,10 @@ def log_manager_menu():
 def main_menu():
     default_id = "36968879"
     user_input = input(f"请输入要爬的豆瓣电影ID（默认：{default_id}）：").strip()
-    TARGET_ID = user_input if user_input else default_id
+    target_id = user_input if user_input else default_id
     while True:
         print(f"\n{'#'*30}")
-        print(f"   豆瓣数据分析工具 (ID: {TARGET_ID})")
+        print(f"   豆瓣数据分析工具 (ID: {target_id})")
         print(f"{'#'*30}")
         print("1.启动爬虫任务 (抓取 + 清洗)")
         print("2.执行聚类分析 (K-Means + 导出)")
@@ -158,7 +165,7 @@ def main_menu():
         choice = input("请输入选项序号: " ).strip()
 
         if choice == '1': 
-            start_spider_pipeline(TARGET_ID)
+            start_spider_pipeline(target_id)
         elif choice == '2': 
             start_clustering_pipeline()
         elif choice == '3': 

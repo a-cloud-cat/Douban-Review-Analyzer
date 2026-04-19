@@ -1,6 +1,4 @@
 import sys
-from pathlib import Path
-
 from src.utils.path_utils import get_project_root
 from src.utils.logger import get_logger
 
@@ -11,7 +9,6 @@ if str(root_path) not in sys.path:
 
 from src.db.base import engine, Base
 
-# 获取日志器
 logger = get_logger("reset_db")
 
 
@@ -19,8 +16,6 @@ def reset_database():
     """
     重置数据库：删除所有表并重新创建空表，实现数据清空
 
-    Args:
-        无参数
 
     Returns:
         无返回值

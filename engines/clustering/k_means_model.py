@@ -2,12 +2,11 @@ import pandas as pd # 用于处理（csv /excel）等
 from sklearn.feature_extraction.text import TfidfVectorizer
 from src.utils.path_utils import get_data_dir, ensure_dir
 from sklearn.cluster import KMeans
-from src.db.models import Review
 from src.utils.logger import get_logger
 from src.utils.db_utils import DatabaseSessionManager
 from src.utils.db_performance import DatabasePerformanceOptimizer
 
-# 获取日志器
+
 logger = get_logger("kmeans")
 
 
@@ -34,8 +33,6 @@ class KMeansAnalyzer:
         """
         执行完整的聚类分析流程：加载数据、向量化、模型训练、结果入库并导出文件
 
-        Args:
-            无参数
 
         Returns:
             无返回值
@@ -45,10 +42,9 @@ class KMeansAnalyzer:
         """
         try:
             with DatabaseSessionManager.get_session() as db:
-                # 批量获取已清洗的评论
                 reviews = DatabasePerformanceOptimizer.get_cleaned_reviews_batch(
                     db=db,
-                    batch_size=1000  # 增加批量大小以提高性能
+                    batch_size=1000
                 )
                 data = [{"id": r.id, "text": r.cleaned_content, "user": r.user_name, "star": r.star}
                         for r in reviews]

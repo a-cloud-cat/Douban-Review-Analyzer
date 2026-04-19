@@ -1,20 +1,15 @@
 from contextlib import contextmanager
-from typing import Generator, Optional
+from typing import Generator
 from sqlalchemy.orm import Session
-from src.db.base import SessionLocal, engine
+from src.db.base import SessionLocal
 from src.utils.logger import get_logger
 
-# 获取日志器
 logger = get_logger("db_utils")
 
 class DatabaseSessionManager:
     """数据库会话管理器
     
-    提供标准化的数据库会话管理，包括：
-    - 会话创建
-    - 自动释放
-    - 异常处理
-    - 事务管理
+    提供标准化的数据库会话管理，包括：- 会话创建- 自动释放- 异常处理- 事务管理
     """
     
     @staticmethod
@@ -37,6 +32,7 @@ class DatabaseSessionManager:
             db.close()
     
     @staticmethod
+    #只需在函数定义时添加 @execute_with_session 装饰器，即可自动获得会话管理功能
     def execute_with_session(func):
         """装饰器：在数据库会话中执行函数
         
@@ -65,12 +61,9 @@ class DatabaseSessionManager:
         
         for i in range(0, len(update_data), batch_size):
             batch = update_data[i:i+batch_size]
-            if not batch:
-                continue
             
             for item in batch:
                 stmt = update(model).where(model.id == item["id"])
-                # 移除 id 字段，只保留需要更新的字段
                 update_fields = {k: v for k, v in item.items() if k != "id"}
                 stmt = stmt.values(**update_fields)
                 db.execute(stmt)
@@ -78,7 +71,6 @@ class DatabaseSessionManager:
             db.commit()
             logger.info(f"Bulk updated {len(batch)} records")
 
-# 便捷函数
 def get_db() -> Generator[Session, None, None]:
     """获取数据库会话的生成器（FastAPI 依赖注入使用）
     
@@ -88,5 +80,5 @@ def get_db() -> Generator[Session, None, None]:
     with DatabaseSessionManager.get_session() as db:
         yield db
 
-# 全局会话管理器实例
+
 db_manager = DatabaseSessionManager()

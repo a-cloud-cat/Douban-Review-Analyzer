@@ -1,6 +1,5 @@
 import logging
 import os
-from pathlib import Path
 from typing import Optional
 
 from src.utils.path_utils import get_logs_dir, ensure_dir
@@ -21,7 +20,6 @@ class Logger:
         logs_dir = get_logs_dir()
         ensure_dir(logs_dir)
         
-        # 日志文件路径
         log_file = logs_dir / f"app_{os.getpid()}.log"
         
         # 配置根日志器
@@ -49,10 +47,10 @@ class Logger:
             return self.logger.getChild(name)
         return self.logger
 
-# 全局日志实例
+
 logger = Logger().get_logger()
 
-# 便捷函数
+
 def get_logger(name: Optional[str] = None) -> logging.Logger:
     """获取日志器
     

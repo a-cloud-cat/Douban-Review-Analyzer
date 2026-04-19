@@ -1,13 +1,11 @@
 import re
 import jieba
-from pathlib import Path
-from src.db.models import Review
 from src.utils.path_utils import get_project_root, get_config_dir
 from src.utils.logger import get_logger
 from src.utils.db_utils import DatabaseSessionManager
 from src.utils.db_performance import DatabasePerformanceOptimizer
 
-# 获取日志器
+
 logger = get_logger("cleaner")
 
 
@@ -37,11 +35,10 @@ class DataCleaner:
         Returns:
             set: 停用词集合
         """
-        # set（集合）查找速度快,且自动去重
+
         stop_words = set()
         stop_path = self.config_dir / "stopwords.txt"
 
-        #读取停用词
         if stop_path.exists():
             with open(stop_path, 'r', encoding='utf-8') as f:
                 for line in f:

@@ -1,20 +1,16 @@
 import os
-import shutil
 from pathlib import Path
 from typing import List, Optional
 from src.utils.path_utils import get_logs_dir, ensure_dir
 from src.utils.logger import get_logger
 
-# 获取日志器
+
 logger = get_logger("log_manager")
 
 class LogManager:
     """日志管理器
     
-    提供日志文件的管理功能，包括：
-    - 清理日志文件
-    - 日志文件统计
-    - 日志文件压缩
+    提供日志文件的管理功能，包括：- 清理日志文件- 日志文件统计- 日志文件压缩
     """
     
     def __init__(self):
@@ -26,7 +22,7 @@ class LogManager:
         """清理日志文件
         
         Args:
-            keep_days: 保留最近几天的日志，None表示清理所有日志
+            keep_days: 保留最近几天的日志文件，None表示清理所有日志
             pattern: 日志文件匹配模式，默认 "*.log"
         
         Returns:
@@ -39,8 +35,7 @@ class LogManager:
             if not log_files:
                 logger.info("没有找到符合条件的日志文件")
                 return 0
-            
-            # 获取当前进程ID，避免删除当前进程的日志文件
+
             current_pid = str(os.getpid())
             
             for log_file in log_files:
@@ -63,7 +58,7 @@ class LogManager:
                     if days_since_modified < keep_days:
                         continue
                 
-                # 尝试删除文件
+                # 尝试删除文件(unlink删除文件用，remove删除目录用)
                 try:
                     log_file.unlink()
                     deleted_count += 1
@@ -116,7 +111,8 @@ class LogManager:
             logger.error(f"获取日志统计信息时发生错误: {e}")
             return {}
     
-    def _format_size(self, size_bytes: int) -> str:
+    @staticmethod
+    def _format_size(size_bytes: int) -> str:
         """格式化文件大小
         
         Args:
@@ -187,5 +183,5 @@ class LogManager:
             logger.error(f"压缩日志文件时发生错误: {e}")
             return 0
 
-# 全局日志管理器实例
+
 log_manager = LogManager()

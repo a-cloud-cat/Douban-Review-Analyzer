@@ -2,7 +2,7 @@ import re        # 正则表达式
 import requests  # 网络请求
 import concurrent.futures
 import time
-from typing import List, Dict, Any, Optional
+from typing import List,Optional
 from src.utils.logger import get_logger
 
 # 获取日志器
@@ -23,7 +23,8 @@ class BaseSpider:
         }
         self.max_workers = 5  # 最大并发数
 
-    def _parse_curl(self, curl_str: str):
+    @staticmethod
+    def _parse_curl(curl_str: str):
         """
         从浏览器复制的 curl 命令中解析出 URL、请求头、Cookies
 
@@ -36,7 +37,6 @@ class BaseSpider:
         Raises:
             Exception: 解析失败时抛出异常
         """
-        #re.search(正则规则, 要搜索的文本)
         url_match = re.search(r"['\"](?P<url>https?://[^'\"]+)['\"]", curl_str)
         target_url = url_match.group("url") if url_match else re.search(r"https?://[^\s'\"]+", curl_str).group(0)
 

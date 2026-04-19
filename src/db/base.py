@@ -3,12 +3,11 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from src.core.config import settings
 import logging
 
-#非自动打印，需调用日志
 logger = logging.getLogger(settings.PROJECT_NAME)
 
-#实例化engine（因为在db.base里面，所以肯定是数据库的engine，故无需叫db_engine）
+#实例化engine
 engine = create_engine(
-    settings.DATABASE_URL,
+    settings.database_url,
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_recycle=3600,

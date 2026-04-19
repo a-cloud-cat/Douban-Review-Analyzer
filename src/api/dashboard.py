@@ -5,22 +5,24 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from src.utils.path_utils import get_project_root
-from src.utils.logger import get_logger
+root_dir = Path(__file__).parent.parent.parent
 
-# 获取日志器
-logger = get_logger("dashboard")
-
-root_dir = get_project_root()
-
-if root_dir not in sys.path:
+if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
+from src.utils.logger import get_logger
+
+
+logger = get_logger("dashboard")
+
+# 预定义变量以避免导入失败时的作用域问题
+Review = None
+DatabaseSessionManager = None
 try:
     from src.db.models import Review
     from src.utils.db_utils import DatabaseSessionManager
-except ImportError as e:
-    st.error(f"导入失败，请确保 src 目录下存在 __init__.py。错误: {e}")
+except ImportError as import_error:
+    st.error(f"导入失败，请确保 src 目录下存在 __init__.py。错误: {import_error}")
     st.stop()
 
 # ==========================================
@@ -37,15 +39,6 @@ st.set_page_config(
 def load_data_from_db():
     """
     从数据库加载所有影评数据，并转换为 DataFrame 格式供可视化使用
-
-    Args:
-        无参数
-
-    Returns:
-        pd.DataFrame: 包含用户、评分、内容、分词结果、聚类ID的数据表
-
-    Raises:
-        无异常抛出，数据库连接在 finally 中自动关闭
     """
     try:
         with DatabaseSessionManager.get_session() as db:
@@ -60,30 +53,29 @@ def load_data_from_db():
                     "聚类ID": r.cluster_id if r.cluster_id is not None else -1
                 })
             return pd.DataFrame(data)
-    except Exception as e:
-        logger.error(f"加载数据失败: {e}")
+    except Exception as ex:
+        logger.error(f"加载数据失败: {ex}")
         return pd.DataFrame()
 
 # --- 侧边栏 ---
-st.sidebar.title("🚀 控制面板")
+st.sidebar.title("控制面板")
 st.sidebar.info("本系统用于豆瓣影评大数据分析。")
-if st.sidebar.button("🔄 刷新数据"):
+if st.sidebar.button("刷新数据"):
     st.cache_data.clear()
     st.rerun()
 
 # --- 主界面 ---
-st.title("🎬 豆瓣影评大数据分析看板")
+st.title("豆瓣影评大数据分析看板")
 df = load_data_from_db()
 
 if df.empty:
-    st.warning("⚠️ 数据库为空，请先运行爬虫采集数据。")
+    st.warning("数据库为空，请先运行爬虫采集数据。")
 else:
     # 1. 顶部指标
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1:
         st.metric("总抓取样本量", len(df))
     with col_m2:
-        # 只统计已经过训练的聚类（即 ID 不为 -1 的）
         trained_clusters = df[df['聚类ID'] != -1]['聚类ID'].nunique()
         st.metric("已识别聚类数", trained_clusters)
     with col_m3:
@@ -96,27 +88,23 @@ else:
     col_left, col_right = st.columns([1, 1])
 
     with col_left:
-        st.subheader("🤖 聚类人群画像分布")
+        st.subheader("聚类人群画像分布")
         cluster_df = df[df['聚类ID'] != -1]
         if not cluster_df.empty:
             cluster_counts = cluster_df['聚类ID'].value_counts().sort_index()
-            # 这里的 index 就是簇 ID，用于 x 轴
             st.bar_chart(cluster_counts)
             st.caption("注：ID 为 0, 1, 2... 代表不同的语义分簇。")
         else:
-            st.info("💡 尚未执行 K-means 训练，请在终端运行：python scripts/train_model.py")
+            st.info("尚未执行 K-means 训练，请在终端运行：python scripts/train_model.py")
 
     with col_right:
-        st.subheader("☁️ 热点关键词云图")
-        # 提取分词结果
+        st.subheader("热点关键词云图")
         text_data = " ".join(df['分词结果'].dropna().astype(str))
         if text_data.strip():
-            # 解决中文乱码：优先匹配 Windows 自带微软雅黑
             font = "C:/Windows/Fonts/msyh.ttc"
             if not Path(font).exists():
-                font = None # 容错
+                font = None
 
-            # 修复：直接使用 .generate(text_data)，不加 all_text= 参数
             wc = WordCloud(
                 font_path=font,
                 width=800, height=500,
@@ -133,8 +121,10 @@ else:
 
     # 3. 数据表
     st.divider()
-    st.subheader("🔍 原始数据明细")
-    st.dataframe(df, width="stretch")
+    st.subheader("原始数据明细")
+    df_display = df.copy()
+    df_display.index = df_display.index + 1
+    st.dataframe(df_display, width="stretch")
 
 st.sidebar.markdown("---")
-st.sidebar.write("✅ 系统状态：运行中")
+st.sidebar.write("系统状态：运行中")
