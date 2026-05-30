@@ -1,5 +1,6 @@
 import json
 import re
+import time
 from typing import List, Dict, Any
 from bs4 import BeautifulSoup
 from src.crawler.base_spider import BaseSpider
@@ -13,8 +14,102 @@ class DoubanSpider(BaseSpider):
     """
     豆瓣电影评论爬虫，继承自 BaseSpider，支持解析 HTML / JSON 异步接口
     自动提取用户名、评论内容、评分星级，支持自动翻页
+    包含反爬检测机制
     """
+    
+    def __init__(self):
+        super().__init__()
+        self.captcha_keywords = [
+            "captcha", "验证码", "请输入验证码",
+            "人机验证", "security check", "verify",
+            "验证", "验证中心", "安全验证"
+        ]
 
+        self.blocked_keywords = [
+            "访问被拒绝", "403", "forbidden",
+            "您的访问过于频繁", "请求过于频繁",
+            "暂时无法访问", "系统检测到异常"
+        ]
+
+    def _detect_anti_spider(self, html_content: str) -> str:
+        """
+        检测页面是否包含反爬措施
+        
+        Args:
+            html_content: HTML内容
+            
+        Returns:
+            str: 
+                - "normal": 正常页面
+                - "captcha": 包含验证码
+                - "blocked": 被封禁
+                - "empty": 内容异常（可能被封）
+        """
+        if not html_content or not html_content.strip():
+            logger.warning("检测到空响应，可能被封禁")
+            return "empty"
+        
+        soup = BeautifulSoup(html_content, "html.parser")
+        page_text = soup.get_text().lower()
+        
+        # 检测验证码
+        for keyword in self.captcha_keywords:
+            if keyword.lower() in page_text:
+                logger.warning(f"检测到验证码关键词: {keyword}")
+                return "captcha"
+        
+        # 检测封禁提示
+        for keyword in self.blocked_keywords:
+            if keyword.lower() in page_text:
+                logger.warning(f"检测到封禁关键词: {keyword}")
+                return "blocked"
+        
+        # 检测验证码图片/表单
+        if soup.select_one("#captcha") or soup.select_one(".captcha-image"):
+            logger.warning("检测到验证码图片")
+            return "captcha"
+        
+        if soup.select_one('input[type="text"][placeholder*="验证码"]'):
+            logger.warning("检测到验证码输入框")
+            return "captcha"
+        
+        # 检测异常页面（内容过短）
+        text_length = len(page_text.strip())
+        if text_length < 150:
+            logger.warning(f"页面内容异常（仅 {text_length} 字符），可能被封禁")
+            return "empty"
+        
+        return "normal"
+    
+    def _handle_anti_spider(self, detect_result: str) -> bool:
+        """
+        处理反爬检测结果
+        
+        Args:
+            detect_result: 检测结果（normal/captcha/blocked/empty）
+            
+        Returns:
+            bool: 是否应该继续执行
+        """
+        if detect_result == "captcha":
+            logger.error("检测到验证码，建议手动处理或暂停一段时间")
+            # 可以在这里添加暂停逻辑或发送通知
+            return False
+            
+        elif detect_result == "blocked":
+            logger.error("检测到被封禁，建议暂停较长时间或更换IP")
+            # 暂停一段时间（5分钟）
+            pause_time = 300
+            logger.info(f"暂停 {pause_time} 秒后继续...")
+            time.sleep(pause_time)
+            return False
+            
+        elif detect_result == "empty":
+            logger.warning("页面内容异常，跳过当前页面")
+            return False
+            
+        return True
+    
     def fetch_data(self, raw_curl: str, max_pages: int = 1) -> List[Dict[str, Any]]:
         """
         根据 curl 命令抓取豆瓣评论数据，自动识别 JSON 接口 / 普通 HTML 页面
@@ -35,6 +130,11 @@ class DoubanSpider(BaseSpider):
 
             if not raw_response:
                 logger.error("未能获取到任何响应内容。 怀疑：网络链接失败等")
+                return []
+            
+            # 检测反爬
+            detect_result = self._detect_anti_spider(raw_response)
+            if not self._handle_anti_spider(detect_result):
                 return []
 
             try:
@@ -155,12 +255,13 @@ class DoubanSpider(BaseSpider):
         logger.info(f"成功生成 {len(page_urls)} 个页面的 URL")
         return page_urls
     
-    def fetch_data_concurrent(self, raw_curls: List[str]) -> List[Dict[str, Any]]:
+    def fetch_data_concurrent(self, raw_curls: List[str], double_check: bool = False) -> List[Dict[str, Any]]:
         """
-        并发抓取多个页面的评论数据
+        抓取多个页面的评论数据
 
         Args:
             raw_curls: 浏览器复制的完整 curl 请求字符串列表
+            double_check: 是否启用双重请求验证，启用后将串行处理
 
         Returns:
             list: 解析后的评论数据列表，每条为字典格式
@@ -170,8 +271,8 @@ class DoubanSpider(BaseSpider):
         """
         all_comments = []
         
-        # 并发获取所有页面的 HTML
-        htmls = self.get_htmls_by_curls(raw_curls)
+        # 获取所有页面的 HTML（根据 double_check 参数决定串行或并发）
+        htmls = self.get_htmls_by_curls(raw_curls, double_check)
         
 
         for i, html in enumerate(htmls):

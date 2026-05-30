@@ -16,7 +16,7 @@ from src.services.data_service import data_service
 from engines.preprocess.cleaner import cleaner
 from engines.clustering.k_means_model import KMeansAnalyzer
 
-# 获取日志器
+
 logger = get_logger("main")
 
 def load_config(file_name):

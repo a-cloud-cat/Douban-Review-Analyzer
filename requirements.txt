@@ -1,4 +1,4 @@
-# --- 核心 Web 框架 ---
+﻿# --- 核心 Web 框架 ---
 fastapi
 uvicorn[standard]
 python-dotenv

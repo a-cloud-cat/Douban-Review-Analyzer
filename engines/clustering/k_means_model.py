@@ -14,20 +14,48 @@ class KMeansAnalyzer:
     """
     K-Means 聚类分析器，负责对清洗后的评论文本进行自动分组
     支持文本向量化、聚类计算、结果回写数据库、导出CSV文件
+    输出正面/负面两个情感标签
     """
 
-    def __init__(self, n_clusters=3):
+    def __init__(self, n_clusters=2):
         """
         初始化 K-Means 聚类分析器
 
         Args:
-            n_clusters: 聚类的分组数量（簇数），默认值为 3
+            n_clusters: 聚类的分组数量（簇数），默认值为 2（正面、负面）
         """
         self.n_clusters = n_clusters
         # Vectorizer矢量化器，本处指只取最重要的 1000 个词
         self.vectorizer = TfidfVectorizer(max_features=1000)
-        # 创建 K-Means 聚类模型（自动分组工具）：分三组，使用++优化模型，固定随机种子，试十次取最优
+        # 创建 K-Means 聚类模型（自动分组工具）：分两组（正面/负面），使用++优化模型，固定随机种子，试十次取最优
         self.model = KMeans(n_clusters=self.n_clusters, init='k-means++', random_state=42, n_init=10)
+        self.cluster_sentiment = {}  # 存储簇ID到情感标签的映射
+
+    def _determine_sentiment(self, df):
+        """
+        根据评分判断每个簇的情感倾向：高分簇为正面，低分簇为负面
+        
+        Args:
+            df: 包含 cluster 和 star 字段的 DataFrame
+        """
+        # 计算每个簇的平均评分
+        cluster_ratings = df.groupby('cluster')['star'].mean().to_dict()
+        
+        logger.info(f"各簇平均评分: {cluster_ratings}")
+        
+        # 找到评分最高和最低的簇
+        sorted_clusters = sorted(cluster_ratings.items(), key=lambda x: x[1])
+        
+        # 评分低的簇标记为负面，评分高的簇标记为正面
+        if len(sorted_clusters) >= 2:
+            self.cluster_sentiment[sorted_clusters[0][0]] = '负面'  # 低分簇
+            self.cluster_sentiment[sorted_clusters[-1][0]] = '正面'  # 高分簇
+            
+            logger.info(f"情感标签映射: {self.cluster_sentiment}")
+        else:
+            # 如果只有一个簇，默认标记为正面
+            self.cluster_sentiment[0] = '正面'
+            logger.warning("数据量不足，只能生成一个簇，默认标记为正面")
 
     def run_analysis(self):
         """
@@ -65,17 +93,25 @@ class KMeansAnalyzer:
                  # df[名字]=【加列】，加行要完整写。本处是将处理结果加入表格
                 df['cluster'] = self.model.labels_
 
-                # 准备批量更新数据
+                # 根据评分判断每个簇的情感倾向
+                logger.info("正在分析各簇的情感倾向...")
+                self._determine_sentiment(df)
+
+                # 添加情感标签列
+                df['sentiment'] = df['cluster'].map(self.cluster_sentiment)
+
+                # 准备批量更新数据（包含情感标签）
                 updates = []
                 for index, row in df.iterrows():
                     updates.append({
                         "id": int(row['id']),
-                        "cluster_id": int(row['cluster'])
+                        "cluster_id": int(row['cluster']),
+                        "sentiment": row['sentiment']
                     })
                 
-                # 批量更新聚类结果
+                # 批量更新聚类结果和情感标签
                 if updates:
-                    logger.info("正在同步 cluster_id 到数据库字段...")
+                    logger.info("正在同步 cluster_id 和 sentiment 到数据库字段...")
                     DatabasePerformanceOptimizer.batch_update_reviews(
                         db=db,
                         updates=updates,
@@ -93,4 +129,4 @@ class KMeansAnalyzer:
         except Exception as e:
             logger.error(f"聚类异常: {e}")
 
-k_means_analyzer = KMeansAnalyzer(n_clusters=3)
+k_means_analyzer = KMeansAnalyzer(n_clusters=2)

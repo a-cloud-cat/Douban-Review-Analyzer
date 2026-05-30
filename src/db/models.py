@@ -18,6 +18,8 @@ class Review(Base):
 
     cluster_id = Column(Integer, default=-1, index=True, comment="聚类簇标签")
 
+    sentiment = Column(String(10), comment="情感标签：正面/负面")
+
     created_at = Column(DateTime, server_default=func.now(), comment="入库时间")
 
 # Representation"（表现/表达）展示添加的数据（按照标准的格式）
