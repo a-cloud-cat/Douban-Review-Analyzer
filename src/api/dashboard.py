@@ -12,7 +12,6 @@ if str(root_dir) not in sys.path:
 
 from src.utils.logger import get_logger
 
-
 logger = get_logger("dashboard")
 
 # 预定义变量以避免导入失败时的作用域问题
@@ -29,13 +28,126 @@ except ImportError as import_error:
 # 页面配置
 # ==========================================
 st.set_page_config(
-    page_title="Douban-Insight 大数据分析看板",
+    page_title="Douban-Insight 数据分析看板",
     page_icon="📊",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# 缓存数据，提升加载速度
-@st.cache_data(ttl=30)
+# ==========================================
+# 大厂风格 CSS 样式
+# ==========================================
+st.markdown("""
+<style>
+    /* 全局样式 */
+    * {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    
+    /* 页面背景 */
+    .stApp {
+        background-color: #f8fafc;
+    }
+    
+    /* 卡片样式 */
+    .metric-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e2e8f0;
+    }
+    
+    .metric-card:hover {
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+        transition: box-shadow 0.2s ease;
+    }
+    
+    /* 指标数值 */
+    .metric-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 4px;
+    }
+    
+    .metric-label {
+        font-size: 13px;
+        color: #64748b;
+        font-weight: 500;
+    }
+    
+    /* 侧边栏样式 */
+    .css-1d391kg {
+        background-color: #ffffff;
+        border-right: 1px solid #e2e8f0;
+    }
+    
+    /* 标题样式 */
+    .main-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 8px;
+    }
+    
+    .section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 16px;
+    }
+    
+    /* 按钮样式 */
+    .stButton>button {
+        background-color: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 16px;
+        font-weight: 500;
+        transition: background-color 0.2s ease;
+    }
+    
+    .stButton>button:hover {
+        background-color: #2563eb;
+    }
+    
+    /* 数据表格 */
+    .dataframe-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e2e8f0;
+    }
+    
+    /* 分割线 */
+    .divider {
+        border-top: 1px solid #e2e8f0;
+        margin: 24px 0;
+    }
+    
+    /* 状态标签 */
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .status-running {
+        background-color: #dcfce7;
+        color: #166534;
+    }
+    
+    .status-pending {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 def load_data_from_db():
     """
     从数据库加载所有影评数据，并转换为 DataFrame 格式供可视化使用
@@ -50,7 +162,8 @@ def load_data_from_db():
                     "评分": r.star,
                     "内容": r.content,
                     "分词结果": r.cleaned_content,
-                    "聚类ID": r.cluster_id if r.cluster_id is not None else -1
+                    "聚类ID": r.cluster_id if r.cluster_id is not None else -1,
+                    "情感": r.sentiment if r.sentiment else "未分析"
                 })
             return pd.DataFrame(data)
     except Exception as ex:
@@ -58,73 +171,291 @@ def load_data_from_db():
         return pd.DataFrame()
 
 # --- 侧边栏 ---
-st.sidebar.title("控制面板")
-st.sidebar.info("本系统用于豆瓣影评大数据分析。")
-if st.sidebar.button("刷新数据"):
-    st.cache_data.clear()
-    st.rerun()
+with st.sidebar:
+    st.markdown("""
+        <div style="padding: 16px 0;">
+            <div style="font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+                Douban-Insight
+            </div>
+            <div style="font-size: 12px; color: #64748b;">
+                豆瓣影评数据分析平台
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    
+    st.subheader("数据筛选", help="筛选显示的数据范围")
+    
+    # 评分范围筛选
+    star_min, star_max = st.slider(
+        "评分范围", 
+        min_value=0, 
+        max_value=5, 
+        value=(0, 5),
+        step=1
+    )
+    
+    # 情感筛选
+    sentiment_options = ["全部", "正面", "负面", "未分析"]
+    selected_sentiment = st.selectbox("情感类型", sentiment_options)
+    
+    # 聚类筛选
+    df_for_filter = load_data_from_db()
+    if not df_for_filter.empty:
+        cluster_options = ["全部"] + sorted(df_for_filter['聚类ID'].unique().tolist())
+        selected_cluster = st.selectbox("聚类分组", cluster_options)
+    
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    
+    if st.button("刷新数据", use_container_width=True):
+        st.rerun()
+    
+    st.markdown("""
+        <div style="margin-top: 24px;">
+            <span class="status-badge status-running">系统运行中</span>
+        </div>
+    """, unsafe_allow_html=True)
 
 # --- 主界面 ---
-st.title("豆瓣影评大数据分析看板")
+st.markdown('<div class="main-title">数据分析看板</div>', unsafe_allow_html=True)
+st.markdown('<div style="font-size: 14px; color: #64748b; margin-bottom: 24px;">实时监控豆瓣影评数据，洞察用户情感趋势</div>', unsafe_allow_html=True)
+
 df = load_data_from_db()
 
 if df.empty:
-    st.warning("数据库为空，请先运行爬虫采集数据。")
+    st.markdown("""
+        <div style="background: white; border-radius: 12px; padding: 40px; text-align: center; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
+            <div style="font-size: 48px; margin-bottom: 16px;">📋</div>
+            <div style="font-size: 16px; color: #334155; font-weight: 500; margin-bottom: 8px;">数据库为空</div>
+            <div style="font-size: 14px; color: #64748b;">请先运行爬虫采集数据</div>
+        </div>
+    """, unsafe_allow_html=True)
 else:
-    # 1. 顶部指标
-    col_m1, col_m2, col_m3 = st.columns(3)
-    with col_m1:
-        st.metric("总抓取样本量", len(df))
-    with col_m2:
-        trained_clusters = df[df['聚类ID'] != -1]['聚类ID'].nunique()
-        st.metric("已识别聚类数", trained_clusters)
-    with col_m3:
-        avg_star = df['评分'].mean()
-        st.metric("平均观众评分", f"{avg_star:.1f} ⭐")
-
-    st.divider()
-
-    # 2. 图表层
-    col_left, col_right = st.columns([1, 1])
-
+    # 应用筛选条件
+    filtered_df = df.copy()
+    if star_min > 0 or star_max < 5:
+        filtered_df = filtered_df[(filtered_df['评分'] >= star_min) & (filtered_df['评分'] <= star_max)]
+    
+    if selected_sentiment != "全部":
+        filtered_df = filtered_df[filtered_df['情感'] == selected_sentiment]
+    
+    if 'selected_cluster' in locals() and selected_cluster != "全部":
+        filtered_df = filtered_df[filtered_df['聚类ID'] == selected_cluster]
+    
+    # 1. 顶部指标卡片
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("""
+            <div class="metric-card">
+                <div class="metric-value">{:,}</div>
+                <div class="metric-label">总样本量</div>
+            </div>
+        """.format(len(filtered_df)), unsafe_allow_html=True)
+    
+    with col2:
+        trained_clusters = filtered_df[filtered_df['聚类ID'] != -1]['聚类ID'].nunique()
+        st.markdown("""
+            <div class="metric-card">
+                <div class="metric-value">{}</div>
+                <div class="metric-label">聚类数量</div>
+            </div>
+        """.format(trained_clusters), unsafe_allow_html=True)
+    
+    with col3:
+        avg_star = filtered_df['评分'].mean()
+        st.markdown("""
+            <div class="metric-card">
+                <div class="metric-value">{:.1f}</div>
+                <div class="metric-label">平均评分</div>
+            </div>
+        """.format(avg_star), unsafe_allow_html=True)
+    
+    with col4:
+        positive_rate = (filtered_df['情感'] == '正面').mean() * 100
+        st.markdown("""
+            <div class="metric-card">
+                <div class="metric-value">{:.1f}%</div>
+                <div class="metric-label">正面情感占比</div>
+            </div>
+        """.format(positive_rate), unsafe_allow_html=True)
+    
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    
+    # 2. 图表区域
+    col_left, col_right = st.columns(2)
+    
     with col_left:
-        st.subheader("聚类人群画像分布")
-        cluster_df = df[df['聚类ID'] != -1]
+        st.markdown('<div class="section-title">聚类分布</div>', unsafe_allow_html=True)
+        cluster_df = filtered_df[filtered_df['聚类ID'] != -1]
+        
         if not cluster_df.empty:
             cluster_counts = cluster_df['聚类ID'].value_counts().sort_index()
-            st.bar_chart(cluster_counts)
-            st.caption("注：ID 为 0, 1, 2... 代表不同的语义分簇。")
+            
+            # 创建带样式的条形图
+            chart_data = pd.DataFrame({
+                '聚类ID': cluster_counts.index,
+                '数量': cluster_counts.values
+            })
+            
+            st.bar_chart(
+                chart_data,
+                x='聚类ID',
+                y='数量',
+                color='#3b82f6',
+                use_container_width=True
+            )
+            
+            st.markdown('<div style="font-size: 12px; color: #64748b; margin-top: 8px;">注：不同聚类代表不同语义分组</div>', unsafe_allow_html=True)
         else:
-            st.info("尚未执行 K-means 训练，请在终端运行：python scripts/train_model.py")
-
+            st.markdown("""
+                <div style="background: white; border-radius: 8px; padding: 24px; text-align: center; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">🔍</div>
+                    <div style="font-size: 14px; color: #64748b;">暂无聚类数据</div>
+                    <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">请先执行聚类分析</div>
+                </div>
+            """, unsafe_allow_html=True)
+    
     with col_right:
-        st.subheader("热点关键词云图")
-        text_data = " ".join(df['分词结果'].dropna().astype(str))
+        st.markdown('<div class="section-title">情感分布</div>', unsafe_allow_html=True)
+        
+        sentiment_counts = filtered_df['情感'].value_counts()
+        if not sentiment_counts.empty:
+            fig, ax = plt.subplots(figsize=(6, 4))
+            
+            colors = {
+                '正面': '#10b981',
+                '负面': '#ef4444',
+                '未分析': '#94a3b8'
+            }
+            
+            ax.pie(
+                sentiment_counts.values,
+                labels=sentiment_counts.index,
+                autopct='%1.1f%%',
+                colors=[colors.get(label, '#94a3b8') for label in sentiment_counts.index],
+                startangle=90,
+                textprops={'fontsize': 12}
+            )
+            ax.axis('equal')
+            
+            st.pyplot(fig, use_container_width=True)
+        else:
+            st.markdown("""
+                <div style="background: white; border-radius: 8px; padding: 24px; text-align: center; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">📊</div>
+                    <div style="font-size: 14px; color: #64748b;">暂无情感数据</div>
+                </div>
+            """, unsafe_allow_html=True)
+    
+    # 3. 词云和评分分布
+    col_wc, col_score = st.columns(2)
+    
+    with col_wc:
+        st.markdown('<div class="section-title">热点关键词</div>', unsafe_allow_html=True)
+        text_data = " ".join(filtered_df['分词结果'].dropna().astype(str))
+        
         if text_data.strip():
             font = "C:/Windows/Fonts/msyh.ttc"
             if not Path(font).exists():
                 font = None
-
+            
             wc = WordCloud(
                 font_path=font,
-                width=800, height=500,
+                width=600,
+                height=400,
                 background_color="white",
-                colormap='viridis'
+                colormap='Blues',
+                prefer_horizontal=0.9,
+                scale=2
             ).generate(text_data)
-
-            fig, ax = plt.subplots()
+            
+            fig, ax = plt.subplots(figsize=(6, 4))
             ax.imshow(wc, interpolation="bilinear")
             ax.axis("off")
-            st.pyplot(fig)
+            plt.tight_layout(pad=0)
+            st.pyplot(fig, use_container_width=True)
         else:
-            st.info("暂无分词数据，请确保已执行清洗任务。")
-
-    # 3. 数据表
-    st.divider()
-    st.subheader("原始数据明细")
-    df_display = df.copy()
-    df_display.index = df_display.index + 1
-    st.dataframe(df_display, width="stretch")
-
-st.sidebar.markdown("---")
-st.sidebar.write("系统状态：运行中")
+            st.markdown("""
+                <div style="background: white; border-radius: 8px; padding: 24px; text-align: center; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">📝</div>
+                    <div style="font-size: 14px; color: #64748b;">暂无分词数据</div>
+                </div>
+            """, unsafe_allow_html=True)
+    
+    with col_score:
+        st.markdown('<div class="section-title">评分分布</div>', unsafe_allow_html=True)
+        
+        score_counts = filtered_df['评分'].value_counts().sort_index()
+        if not score_counts.empty:
+            chart_data = pd.DataFrame({
+                '评分': score_counts.index,
+                '数量': score_counts.values
+            })
+            
+            st.bar_chart(
+                chart_data,
+                x='评分',
+                y='数量',
+                color='#8b5cf6',
+                use_container_width=True
+            )
+            
+            st.markdown('<div style="font-size: 12px; color: #64748b; margin-top: 8px;">1-5星评分分布情况</div>', unsafe_allow_html=True)
+        else:
+            st.markdown("""
+                <div style="background: white; border-radius: 8px; padding: 24px; text-align: center; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">⭐</div>
+                    <div style="font-size: 14px; color: #64748b;">暂无评分数据</div>
+                </div>
+            """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    
+    # 4. 数据表格
+    st.markdown('<div class="section-title">数据明细</div>', unsafe_allow_html=True)
+    
+    # 准备显示数据
+    display_df = filtered_df[['用户', '评分', '情感', '内容']].copy()
+    display_df.index = display_df.index + 1
+    
+    # 添加评分星级显示
+    display_df['评分'] = display_df['评分'].apply(lambda x: '⭐' * x if x > 0 else '-')
+    
+    # 添加情感标签样式
+    def format_sentiment(sentiment):
+        if sentiment == '正面':
+            return '<span style="color: #10b981; font-weight: 500;">正面</span>'
+        elif sentiment == '负面':
+            return '<span style="color: #ef4444; font-weight: 500;">负面</span>'
+        else:
+            return '<span style="color: #94a3b8;">未分析</span>'
+    
+    display_df['情感'] = display_df['情感'].apply(format_sentiment)
+    
+    # 限制内容长度
+    display_df['内容'] = display_df['内容'].apply(lambda x: x[:50] + '...' if len(str(x)) > 50 else x)
+    
+    # 自定义表格显示
+    st.dataframe(
+        display_df,
+        column_config={
+            "用户": st.column_config.TextColumn("用户", width="small"),
+            "评分": st.column_config.TextColumn("评分", width="small"),
+            "情感": st.column_config.TextColumn("情感", width="small"),
+            "内容": st.column_config.TextColumn("评论内容", width="large")
+        },
+        use_container_width=True,
+        hide_index=False
+    )
+    
+    # 数据导出
+    csv_data = df.to_csv(index=False, encoding='utf-8-sig')
+    st.download_button(
+        label="📥 导出数据",
+        data=csv_data,
+        file_name="douban_reviews.csv",
+        mime="text/csv",
+        use_container_width=True
+    )

@@ -68,7 +68,7 @@ def start_web_dashboard():
     dashboard_path = PROJECT_ROOT / "src" / "api" / "dashboard.py"
 
     try:
-        subprocess.run(["streamlit", "run", dashboard_path])
+        subprocess.run([sys.executable, "-m", "streamlit", "run", dashboard_path])
     except KeyboardInterrupt:
         logger.info("看板服务已停止。")
 

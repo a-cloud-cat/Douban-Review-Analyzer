@@ -43,19 +43,17 @@ class KMeansAnalyzer:
         
         logger.info(f"各簇平均评分: {cluster_ratings}")
         
-        # 找到评分最高和最低的簇
-        sorted_clusters = sorted(cluster_ratings.items(), key=lambda x: x[1])
+        # 计算所有簇的平均评分
+        overall_avg = sum(cluster_ratings.values()) / len(cluster_ratings)
         
-        # 评分低的簇标记为负面，评分高的簇标记为正面
-        if len(sorted_clusters) >= 2:
-            self.cluster_sentiment[sorted_clusters[0][0]] = '负面'  # 低分簇
-            self.cluster_sentiment[sorted_clusters[-1][0]] = '正面'  # 高分簇
-            
-            logger.info(f"情感标签映射: {self.cluster_sentiment}")
-        else:
-            # 如果只有一个簇，默认标记为正面
-            self.cluster_sentiment[0] = '正面'
-            logger.warning("数据量不足，只能生成一个簇，默认标记为正面")
+        # 给每个簇分配情感标签
+        for cluster_id, rating in cluster_ratings.items():
+            if rating >= overall_avg:
+                self.cluster_sentiment[cluster_id] = '正面'
+            else:
+                self.cluster_sentiment[cluster_id] = '负面'
+        
+        logger.info(f"情感标签映射: {self.cluster_sentiment}")
 
     def run_analysis(self):
         """
