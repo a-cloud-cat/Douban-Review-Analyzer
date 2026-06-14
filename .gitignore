@@ -1,32 +1,60 @@
 # 环境变量文件
 .env
+.env.local
+.env.*.local
 
 # 虚拟环境
 .venv/
 venv/
 env/
+.env/
 
 # 编译生成的文件
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# 测试缓存
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
 
 # 日志文件
 logs/
+*.log
 
 # 数据文件
 data/
+*.json
+*.csv
+
+# 模型文件
+models/
+*.pkl
+*.joblib
+
+# 包信息
+*.egg-info/
+dist/
+build/
 
 # IDE 相关文件
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
 
 # 操作系统相关文件
 .DS_Store
 Thumbs.db
 
+# Streamlit 缓存
+.streamlit/
+
 # 其他
-*.swp
-*.swo
-*~
 learn.txt
 CLAUDE.md
+*.iml

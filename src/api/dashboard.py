@@ -221,7 +221,7 @@ with st.sidebar:
     
     # 页面选择
     st.subheader("页面导航")
-    page_options = ["数据概览", "图书比较"]
+    page_options = ["数据概览", "图书比较", "分类分析"]
     selected_page = st.selectbox("选择页面", page_options)
     
     if selected_page == "数据概览":
@@ -596,3 +596,211 @@ elif selected_page == "图书比较":
                 color='聚类',
                 use_container_width=True
             )
+
+elif selected_page == "分类分析":
+    st.markdown('<div class="main-title">分类分析</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 14px; color: #64748b; margin-bottom: 24px;">基于监督学习的情感分类模型训练与预测</div>', unsafe_allow_html=True)
+    
+    # 训练流程说明
+    st.markdown("""
+    <div style="background: #eff6ff; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+        <div style="font-weight: 600; color: #1e40af; margin-bottom: 8px;">📋 训练流程说明</div>
+        <div style="font-size: 13px; color: #475569; line-height: 1.6;">
+            1. <strong>数据来源</strong>：自动从数据库加载已完成聚类分析的评论数据（已标注正面/负面标签）<br>
+            2. <strong>训练过程</strong>：使用 TF-IDF 提取文本特征 → 训练分类模型 → 评估模型性能<br>
+            3. <strong>模型保存</strong>：训练完成后自动保存到 <code>models/</code> 目录<br>
+            4. <strong>预测使用</strong>：加载已训练的模型，对新评论进行情感预测
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 尝试导入分类器
+    try:
+        from engines.classification.classifier import SentimentClassifier
+        from src.db.models import Review
+        
+        # 从数据库获取图书列表
+        book_list = []
+        try:
+            with DatabaseSessionManager.get_session() as db:
+                book_list = sorted(set([r.douban_id for r in db.query(Review).filter(Review.sentiment.isnot(None)).all()]))
+        except Exception as e:
+            st.warning(f"获取图书列表失败: {e}")
+        
+        # 模型选择
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            model_type = st.selectbox("选择模型", ["svm", "logistic", "tree"], format_func=lambda x: {"svm": "SVM", "logistic": "逻辑回归", "tree": "决策树"}[x])
+        with col2:
+            use_smote = st.checkbox("启用 SMOTE 非平衡处理", value=False)
+        with col3:
+            use_scaler = st.checkbox("启用数据归一化", value=False)
+        
+        # 按图书筛选训练数据
+        st.markdown('<div class="section-title">训练数据选择</div>', unsafe_allow_html=True)
+        selected_books = st.multiselect("选择用于训练的图书（多选）", book_list, default=book_list, help="选择哪些图书的评论用于训练模型")
+        
+        # 显示训练数据统计
+        try:
+            with DatabaseSessionManager.get_session() as db:
+                total_reviews = db.query(Review).filter(Review.sentiment.isnot(None)).count()
+                positive_count = db.query(Review).filter(Review.sentiment == '正面').count()
+                negative_count = db.query(Review).filter(Review.sentiment == '负面').count()
+                
+                st.markdown(f"""
+                <div style="background: #f8fafc; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                    <div style="font-size: 13px; color: #64748b;">
+                        <strong>训练数据统计：</strong>
+                        总评论数: {total_reviews} | 
+                        正面: {positive_count} ({positive_count/total_reviews*100:.1f}%) | 
+                        负面: {negative_count} ({negative_count/total_reviews*100:.1f}%)
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # 如果数据不平衡，给出警告
+                if positive_count == 0 or negative_count == 0:
+                    st.error("❌ 数据不平衡：缺少正面或负面评论，请重新运行聚类分析")
+                elif min(positive_count, negative_count) < 10:
+                    st.warning("⚠️ 数据量较少：建议每类至少有50条评论以获得较好的模型效果")
+        except Exception as e:
+            st.warning(f"获取数据统计失败: {e}")
+        
+        # 检查是否有可用模型
+        import os
+        model_path = os.path.join(root_dir, "models", f"sentiment_{model_type}.pkl")
+        model_exists = os.path.exists(model_path)
+        
+        if model_exists:
+            st.success(f"✅ 已找到训练好的模型: sentiment_{model_type}.pkl")
+        else:
+            st.warning(f"⚠️ 未找到训练好的模型，请先训练")
+        
+        # 训练按钮
+        if st.button("🚀 训练模型", use_container_width=True, key="train_btn"):
+            with st.spinner("正在训练模型..."):
+                classifier = SentimentClassifier(model_type=model_type, use_smote=use_smote, use_scaler=use_scaler)
+                
+                # 如果选择了特定图书，只使用这些图书的数据
+                if selected_books:
+                    # 从数据库加载指定图书的数据
+                    try:
+                        with DatabaseSessionManager.get_session() as db:
+                            reviews = db.query(Review).filter(
+                                Review.sentiment.isnot(None),
+                                Review.douban_id.in_(selected_books)
+                            ).all()
+                            
+                            texts = [r.cleaned_content for r in reviews if r.cleaned_content]
+                            labels = [1 if r.sentiment == '正面' else 0 for r in reviews if r.cleaned_content]
+                            
+                            if not texts:
+                                st.error("❌ 所选图书没有标注好的评论数据")
+                                st.stop()
+                            
+                            st.info(f"📊 使用 {len(selected_books)} 本图书的 {len(texts)} 条评论进行训练")
+                            result = classifier.train(texts=texts, labels=labels)
+                    except Exception as e:
+                        st.error(f"❌ 加载数据失败: {e}")
+                        st.stop()
+                else:
+                    result = classifier.train()
+                
+                if result:
+                    st.success("✅ 模型训练成功！")
+                    st.markdown(f"### 训练结果")
+                    st.markdown(f"**准确率**: {result['accuracy']:.4f}")
+                    st.markdown(f"**分类报告**:")
+                    st.code(result['classification_report'])
+                    classifier.save_model()
+                    st.info("📦 模型已保存到 models 目录")
+                    # 刷新页面以更新模型状态
+                    st.rerun()
+                else:
+                    # 显示具体错误信息
+                    error_msg = getattr(classifier, 'last_error', '未知错误')
+                    st.error(f"❌ 训练失败：{error_msg}")
+                    st.info("💡 提示：请先运行爬虫抓取评论，再运行聚类分析生成情感标签")
+        
+        # 预测功能
+        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">情感预测</div>', unsafe_allow_html=True)
+        
+        input_text = st.text_area("输入评论文本", placeholder="请输入一段图书评论，我来预测它的情感倾向...", height=100, key="predict_input")
+        
+        # 检查模型是否存在
+        model_path = os.path.join(root_dir, "models", f"sentiment_{model_type}.pkl")
+        model_exists_for_predict = os.path.exists(model_path)
+        
+        if st.button("🔍 预测情感", use_container_width=True, key="single_predict_btn", disabled=not model_exists_for_predict):
+            if not input_text.strip():
+                st.warning("请输入评论文本")
+            elif not model_exists_for_predict:
+                st.error("❌ 未找到训练好的模型，请先训练模型")
+            else:
+                # 每次预测都重新加载模型，确保使用最新的模型
+                classifier = SentimentClassifier(model_type=model_type, use_smote=use_smote, use_scaler=use_scaler)
+                if classifier.load_model():
+                    result = classifier.predict(input_text)
+                    
+                    sentiment_color = "#10b981" if result['sentiment'] == '正面' else "#ef4444"
+                    st.markdown(f"""
+                        <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
+                            <div style="font-size: 14px; color: #64748b; margin-bottom: 8px;">预测结果</div>
+                            <div style="font-size: 32px; font-weight: 700; color: {sentiment_color};">
+                                {result['sentiment']}
+                            </div>
+                            <div style="font-size: 14px; color: #64748b; margin-top: 8px;">
+                                置信度: {result['confidence'] * 100:.1f}%
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.error("❌ 加载模型失败")
+        
+        # 批量预测示例
+        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">批量预测示例</div>', unsafe_allow_html=True)
+        
+        example_texts = [
+            "这本书非常精彩，强烈推荐！",
+            "内容很枯燥，不建议购买",
+            "情节跌宕起伏，人物刻画细腻",
+            "浪费时间，完全不值得一读"
+        ]
+        
+        if st.button("🔄 测试示例评论", use_container_width=True, key="batch_predict_btn", disabled=not model_exists_for_predict):
+            if not model_exists_for_predict:
+                st.error("❌ 未找到训练好的模型，请先训练模型")
+            else:
+                # 使用保存模型时的参数来加载，而不是当前界面的参数
+                # 因为模型保存时记录了训练时的参数设置
+                classifier = SentimentClassifier(model_type=model_type, use_smote=False, use_scaler=False)
+                
+                if classifier.load_model():
+                    # 加载后，使用模型保存的参数
+                    st.info(f"📋 模型参数：类型={classifier.model_type}, SMOTE={classifier.use_smote}, 归一化={classifier.use_scaler}")
+                    
+                    results = classifier.batch_predict(example_texts)
+                    
+                    result_df = pd.DataFrame(results)
+                    # 使用正确的列名 sentiment
+                    result_df['sentiment'] = result_df['sentiment'].apply(lambda x: f'<span style="color: {"#10b981" if x == "正面" else "#ef4444"}; font-weight: 500;">{x}</span>')
+                    result_df['confidence'] = result_df['confidence'].apply(lambda x: f'{x * 100:.1f}%')
+                    
+                    st.dataframe(
+                        result_df,
+                        column_config={
+                            "text": st.column_config.TextColumn("评论文本", width="large"),
+                            "sentiment": st.column_config.TextColumn("预测情感", width="small"),
+                            "confidence": st.column_config.TextColumn("置信度", width="small")
+                        },
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.error("❌ 加载模型失败")
+    
+    except ImportError as e:
+        st.error(f"❌ 导入分类器失败: {e}")
+        st.info("请确保已安装 imblearn 依赖：`pip install imblearn`")

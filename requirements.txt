@@ -1,4 +1,4 @@
-﻿# --- 核心 Web 框架 ---
+# --- 核心 Web 框架 ---
 fastapi
 uvicorn[standard]
 python-dotenv
@@ -26,6 +26,7 @@ jieba
 # --- 机器学习 ---
 scikit-learn
 joblib
+imblearn
 
 # 测试
 pytest

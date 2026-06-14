@@ -15,6 +15,7 @@ from src.crawler.douban_spider import DoubanSpider
 from src.services.data_service import data_service
 from engines.preprocess.cleaner import cleaner
 from engines.clustering.k_means_model import KMeansAnalyzer
+from engines.classification.classifier import SentimentClassifier
 
 
 logger = get_logger("main")
@@ -79,6 +80,44 @@ def start_clustering_pipeline():
     logger.info("开始执行聚类分析")
     analyzer = KMeansAnalyzer(n_clusters=3)
     analyzer.run_analysis()
+
+def start_classification_pipeline():
+    logger.info("开始执行分类分析")
+    
+    while True:
+        print(f"\n{'#'*30}")
+        print("   分类算法选择")
+        print(f"{'#'*30}")
+        print("1. SVM (支持向量机)")
+        print("2. 逻辑回归")
+        print("3. 决策树")
+        print("4. 返回主菜单")
+        print("-" * 30)
+        model_choice = input("请选择分类算法: ").strip()
+        
+        if model_choice == '1':
+            model_type = 'svm'
+            break
+        elif model_choice == '2':
+            model_type = 'logistic'
+            break
+        elif model_choice == '3':
+            model_type = 'tree'
+            break
+        elif model_choice == '4':
+            return
+        else:
+            print("无效选项，请重新输入")
+    
+    # 询问是否使用非平衡处理
+    use_smote = input("是否使用 SMOTE 非平衡处理？(y/n): ").lower() == 'y'
+    
+    # 询问是否使用数据归一化
+    use_scaler = input("是否使用数据归一化？(y/n): ").lower() == 'y'
+    
+    # 创建并训练分类器
+    classifier = SentimentClassifier(model_type=model_type, use_smote=use_smote, use_scaler=use_scaler)
+    classifier.run_analysis()
 
 def start_web_dashboard():
     logger.info("启动可视化看板，正在打开浏览器...")
@@ -169,12 +208,13 @@ def main_menu():
         print("   豆瓣图书数据分析工具")
         print(f"{'#'*30}")
         print("1.启动爬虫任务 (抓取 + 清洗)")
-        print("2.执行聚类分析 (K-Means + 导出)")
-        print("3.启动可视化看板 (浏览器打开)")
-        print("4.重置数据库 (清空所有记录)")
-        print("5.日志管理功能")
-        print("6.运行测试")
-        print("7.退出程序")
+        print("2.执行聚类分析 (K-Means + 情感标注)")
+        print("3.执行分类分析 (SVM/逻辑回归/决策树)")
+        print("4.启动可视化看板 (浏览器打开)")
+        print("5.重置数据库 (清空所有记录)")
+        print("6.日志管理功能")
+        print("7.运行测试")
+        print("8.退出程序")
         print("-" * 30)
         choice = input("请输入选项序号: ").strip()
 
@@ -183,15 +223,17 @@ def main_menu():
         elif choice == '2': 
             start_clustering_pipeline()
         elif choice == '3': 
+            start_classification_pipeline()
+        elif choice == '4': 
             start_web_dashboard()
-        elif choice == '4':
+        elif choice == '5':
             if input("确定清空吗？(y/n): ").lower() == 'y': 
                 clear_data()
-        elif choice == '5': 
-            log_manager_menu()
         elif choice == '6': 
-            run_tests()
+            log_manager_menu()
         elif choice == '7': 
+            run_tests()
+        elif choice == '8': 
             logger.info("程序已退出。")
             break
         else:
