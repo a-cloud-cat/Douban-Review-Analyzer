@@ -1,9 +1,8 @@
 import re
 import random
 import requests  # 网络请求
-import concurrent.futures
 import time
-from typing import List,Optional
+from typing import List, Optional
 from src.utils.path_utils import get_config_dir
 from src.utils.logger import get_logger
 
@@ -299,60 +298,39 @@ class BaseSpider:
     def get_htmls_by_curls(self, raw_curls: List[str], double_check: bool = False) -> List[Optional[str]]:
         """
         处理多个 curl 命令，获取多个网页的 HTML 内容
+        改为串行请求，降低被检测概率
 
         Args:
             raw_curls: 浏览器复制的完整 curl 字符串列表
-            double_check: 是否启用双重请求验证，启用后将串行处理
+            double_check: 是否启用双重请求验证
 
         Returns:
             List[Optional[str]]: 网页 HTML 内容列表，请求失败返回 None
         """
         results = []
         
-        if double_check:
-            # 双重验证模式：串行处理，确保每个链接验证完成后再进入下一个
-            logger.info(f"启用双重请求验证模式，开始串行处理 {len(raw_curls)} 个页面")
-            start_time = time.time()
+        # 串行处理所有链接，降低被检测概率
+        logger.info(f"开始串行请求 {len(raw_curls)} 个页面")
+        start_time = time.time()
+        
+        for i, raw_curl in enumerate(raw_curls):
+            logger.info(f"处理第 {i+1}/{len(raw_curls)} 个链接")
             
-            for i, raw_curl in enumerate(raw_curls):
-                logger.info(f"处理第 {i+1}/{len(raw_curls)} 个链接")
+            # 添加随机延迟，模拟人类行为
+            if i > 0:
+                delay = self._get_human_like_delay()
+                logger.info(f"等待 {delay:.2f} 秒后继续")
+                time.sleep(delay)
+            
+            if double_check:
                 result = self.get_html_by_curl(raw_curl, double_check=True)
-                results.append(result)
-                
-                # 在进入下一个链接前添加随机延迟
-                if i < len(raw_curls) - 1:
-                    delay = self._get_human_like_delay()
-                    logger.info(f"等待 {delay:.2f} 秒后进入下一个链接")
-                    time.sleep(delay)
+            else:
+                result = self.get_html_by_curl(raw_curl)
             
-            end_time = time.time()
-            logger.info(f"串行请求完成，耗时: {end_time - start_time:.2f} 秒")
-        else:
-            # 普通模式：并发处理
-            def fetch_curl(raw_curl):
-                """单个 curl 请求的处理函数"""
-                time.sleep(self._get_human_like_delay())
-                return self.get_html_by_curl(raw_curl)
-            
-            logger.info(f"开始并发请求 {len(raw_curls)} 个页面")
-            start_time = time.time()
-            
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                # 提交所有任务
-                future_to_curl = {executor.submit(fetch_curl, curl): curl for curl in raw_curls}
-                
-                # 收集结果
-                for future in concurrent.futures.as_completed(future_to_curl):
-                    curl = future_to_curl[future]
-                    try:
-                        result = future.result()
-                        results.append(result)
-                    except Exception as e:
-                        logger.error(f"处理 curl 请求时发生异常: {e}")
-                        results.append(None)
-            
-            end_time = time.time()
-            logger.info(f"并发请求完成，耗时: {end_time - start_time:.2f} 秒")
+            results.append(result)
+        
+        end_time = time.time()
+        logger.info(f"串行请求完成，耗时: {end_time - start_time:.2f} 秒")
         
         return results
     

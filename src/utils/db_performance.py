@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional, Generator
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from src.db.models import Review
+from src.db.models import Review, BookReviewStats
 from src.utils.logger import get_logger
 
 logger = get_logger("db_performance")
@@ -181,5 +181,77 @@ class DatabasePerformanceOptimizer:
         deleted = db.query(Review).filter(Review.douban_id == douban_id).delete()
         logger.info(f"已删除 {deleted} 条评论")
         return deleted
+
+    @staticmethod
+    def update_book_review_stats(db: Session, book_name: str, review_count: int) -> bool:
+        """更新图书评论统计信息
+        
+        Args:
+            db: 数据库会话
+            book_name: 图书名称
+            review_count: 新增评论数量
+        
+        Returns:
+            bool: 是否更新成功
+        """
+        try:
+            # 获取当前图书最新的评论ID范围
+            min_id = db.query(func.min(Review.id)).filter(Review.douban_id == book_name).scalar()
+            max_id = db.query(func.max(Review.id)).filter(Review.douban_id == book_name).scalar()
+            total_count = db.query(func.count(Review.id)).filter(Review.douban_id == book_name).scalar()
+
+            if min_id is None or max_id is None:
+                logger.warning(f"未找到图书 {book_name} 的评论数据")
+                return False
+
+            # 查询是否已存在该图书的统计记录
+            existing_stats = db.query(BookReviewStats).filter(BookReviewStats.book_name == book_name).first()
+
+            if existing_stats:
+                # 更新现有记录
+                existing_stats.start_row = min_id
+                existing_stats.end_row = max_id
+                existing_stats.review_count = total_count
+                logger.info(f"更新图书统计: {book_name} - 起始行:{min_id}, 终止行:{max_id}, 评论数:{total_count}")
+            else:
+                # 创建新记录
+                new_stats = BookReviewStats(
+                    book_name=book_name,
+                    start_row=min_id,
+                    end_row=max_id,
+                    review_count=total_count
+                )
+                db.add(new_stats)
+                logger.info(f"创建图书统计: {book_name} - 起始行:{min_id}, 终止行:{max_id}, 评论数:{total_count}")
+
+            return True
+        except Exception as e:
+            logger.error(f"更新图书统计时发生错误: {e}")
+            return False
+
+    @staticmethod
+    def refresh_all_book_stats(db: Session) -> int:
+        """刷新所有图书的统计信息
+        
+        Args:
+            db: 数据库会话
+        
+        Returns:
+            int: 刷新的图书数量
+        """
+        try:
+            # 获取所有不重复的图书名称
+            book_names = db.query(Review.douban_id).distinct().all()
+            
+            count = 0
+            for (book_name,) in book_names:
+                if DatabasePerformanceOptimizer.update_book_review_stats(db, book_name, 0):
+                    count += 1
+            
+            logger.info(f"成功刷新 {count} 本图书的统计信息")
+            return count
+        except Exception as e:
+            logger.error(f"刷新图书统计时发生错误: {e}")
+            return 0
 
 db_perf_optimizer = DatabasePerformanceOptimizer()
