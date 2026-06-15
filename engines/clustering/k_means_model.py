@@ -1,4 +1,4 @@
-import pandas as pd # 用于处理（csv /excel）等
+import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from src.utils.path_utils import get_data_dir, ensure_dir
 from sklearn.cluster import KMeans
@@ -8,22 +8,6 @@ from src.utils.db_performance import DatabasePerformanceOptimizer
 
 
 logger = get_logger("kmeans")
-
-
-# 情感词典 - 用于辅助判断情感倾向
-POSITIVE_WORDS = {
-    '精彩', '推荐', '好看', '喜欢', '不错', '好', '棒', '赞', '优秀', '经典',
-    '感人', '深刻', '震撼', '值得', '完美', '满意', '惊喜', '惊艳', '出色',
-    '完美', '有趣', '生动', '细腻', '真实', '温暖', '感动', '深刻', '难忘',
-    '精彩绝伦', '爱不释手', '回味无穷', '受益匪浅', '引人入胜', '发人深省'
-}
-
-NEGATIVE_WORDS = {
-    '差', '烂', '糟糕', '失望', '垃圾', '无聊', '难看', '恶心', '浪费',
-    '不值', '上当', '坑', '骗', '假', '差强人意', '毫无', '枯燥', '乏味',
-    '混乱', '难懂', '错误', '虚假', '抄袭', '粗制滥造', '不知所云', '虎头蛇尾',
-    '浪费时间', '毫无意义', '令人失望', '惨不忍睹', '一塌糊涂'
-}
 
 
 class KMeansAnalyzer:
@@ -41,74 +25,64 @@ class KMeansAnalyzer:
             n_clusters: 聚类的分组数量（簇数），默认值为 2（正面、负面）
         """
         self.n_clusters = n_clusters
-        # Vectorizer矢量化器，本处指只取最重要的 1000 个词
         self.vectorizer = TfidfVectorizer(max_features=1000)
-        # 创建 K-Means 聚类模型（自动分组工具）：分两组（正面/负面），使用++优化模型，固定随机种子，试十次取最优
         self.model = KMeans(n_clusters=self.n_clusters, init='k-means++', random_state=42, n_init=10)
-        self.cluster_sentiment = {}  # 存储簇ID到情感标签的映射
-
-    def _count_sentiment_words(self, text):
-        """
-        统计文本中正面和负面词汇的数量
-        
-        Args:
-            text: 评论文本
-            
-        Returns:
-            tuple: (正面词数量, 负面词数量)
-        """
-        positive_count = 0
-        negative_count = 0
-        
-        for word in POSITIVE_WORDS:
-            if word in text:
-                positive_count += 1
-        
-        for word in NEGATIVE_WORDS:
-            if word in text:
-                negative_count += 1
-        
-        return positive_count, negative_count
+        self.cluster_sentiment = {}
+        self.use_bert = True  # 默认使用 BERT
 
     def _determine_sentiment(self, df):
         """
-        根据评分直接判断情感倾向（更准确）
-        
-        规则：
-        - 4-5星 → 正面
-        - 1-2星 → 负面
-        - 3星 → 根据关键词判断
+        使用改进的情感分析器判断情感倾向
+        优先使用 BERT，如果失败则回退到词典方法
         
         Args:
-            df: 包含 cluster 和 star 字段的 DataFrame
+            df: 包含 text 和 star 字段的 DataFrame
+            
+        Returns:
+            df: 添加 sentiment 列的 DataFrame
         """
-        # 直接根据评分标记情感
-        def get_sentiment_from_rating(star, text):
-            if star >= 4:
-                return '正面'
-            elif star <= 2:
-                return '负面'
-            else:
-                # 3星根据关键词判断
-                pos, neg = self._count_sentiment_words(str(text))
-                if pos > neg:
-                    return '正面'
-                elif neg > pos:
-                    return '负面'
-                else:
-                    # 关键词也无法判断，默认标记为负面（保守策略）
-                    return '负面'
+        # 尝试使用 BERT
+        if self.use_bert:
+            try:
+                logger.info("正在使用 V2 方案（BERT）分析情感...")
+                from engines.clustering.sentiment_analyzer_v2 import get_bert_analyzer
+                sentiment_analyzer = get_bert_analyzer(use_gpu=True)
+                use_bert_analyzer = True
+            except Exception as e:
+                logger.warning("BERT 模型加载失败: {}".format(e))
+                logger.info("回退到 V1 方案（词典方法）")
+                use_bert_analyzer = False
+                self.use_bert = False
+        else:
+            use_bert_analyzer = False
         
-        # 先直接根据评分标记
-        df['sentiment'] = df.apply(lambda row: get_sentiment_from_rating(row['star'], row['text']), axis=1)
+        if not use_bert_analyzer:
+            # 使用词典方法
+            from engines.clustering.sentiment_analyzer_v1 import sentiment_analyzer_v1
+            sentiment_analyzer = sentiment_analyzer_v1
+
+        sentiments = []
+        for idx, row in df.iterrows():
+            text = str(row['text']).strip()
+            sentiment, confidence = sentiment_analyzer.analyze(text)
+            
+            # 如果置信度太低或者是中立，结合评分判断
+            if confidence < 0.6 or sentiment == '中立':
+                star = row['star']
+                if star >= 4:
+                    sentiment = '正面'
+                elif star <= 2:
+                    sentiment = '负面'
+            
+            sentiments.append(sentiment)
+            
+            if (idx + 1) % 50 == 0:
+                logger.info("已处理 {}/{} 条评论".format(idx + 1, len(df)))
         
-        # 统计结果
+        df['sentiment'] = sentiments
+        
         sentiment_counts = df['sentiment'].value_counts().to_dict()
-        logger.info(f"基于评分的情感分布: {sentiment_counts}")
-        
-        # 由于我们现在直接在df上标记情感，不需要cluster_sentiment映射
-        # 但为了保持兼容性，仍然设置一个空映射
-        self.cluster_sentiment = {0: '正面', 1: '负面'}
+        logger.info("情感分布: {}".format(sentiment_counts))
         
         return df
 
@@ -132,26 +106,21 @@ class KMeansAnalyzer:
                         for r in reviews]
 
                 if len(data) < self.n_clusters:
-                    logger.warning(f"数据量不足（当前有效数据: {len(data)}），无法进行聚类。")
+                    logger.warning("数据量不足（当前有效数据: {}），无法进行聚类。".format(len(data)))
                     return
 
-                df = pd.DataFrame(data) # 形成一个excel表
+                df = pd.DataFrame(data)
 
-                # TF-IDF 向量化：将文本转为机器能理解的数值特征
                 logger.info("正在生成 TF-IDF 特征矩阵...")
                 tfidf_matrix = self.vectorizer.fit_transform(df['text'])
 
-                # 运行 K-means 算法：寻找数据的自然聚拢点
-                logger.info(f"正在计算 {self.n_clusters} 个分簇结果...")
+                logger.info("正在计算 {} 个分簇结果...".format(self.n_clusters))
                 self.model.fit(tfidf_matrix)
-                 # df[名字]=【加列】，加行要完整写。本处是将处理结果加入表格
                 df['cluster'] = self.model.labels_
 
-                # 根据评分直接判断情感倾向（改进后的方法）
-                logger.info("正在根据评分分析情感倾向...")
+                logger.info("正在分析情感倾向...")
                 df = self._determine_sentiment(df)
 
-                # 准备批量更新数据（包含情感标签）
                 updates = []
                 for index, row in df.iterrows():
                     updates.append({
@@ -160,7 +129,6 @@ class KMeansAnalyzer:
                         "sentiment": row['sentiment']
                     })
 
-                # 批量更新聚类结果和情感标签
                 if updates:
                     logger.info("正在同步 cluster_id 和 sentiment 到数据库字段...")
                     DatabasePerformanceOptimizer.batch_update_reviews(
@@ -173,13 +141,16 @@ class KMeansAnalyzer:
             export_path = processed_dir / "clustered_reviews.csv"
             df.to_csv(export_path, index=False, encoding='utf-8-sig')
 
-            logger.info(f"聚类成功！结果已保存至: {export_path}")
+            logger.info("聚类成功！结果已保存至: {}".format(export_path))
             logger.info("各簇分布统计:")
             logger.info(df['cluster'].value_counts().to_dict())
             logger.info("情感分布统计:")
             logger.info(df['sentiment'].value_counts().to_dict())
 
         except Exception as e:
-            logger.error(f"聚类异常: {e}")
+            logger.error("聚类异常: {}".format(e))
+            import traceback
+            logger.error("详细错误信息: {}".format(traceback.format_exc()))
+
 
 k_means_analyzer = KMeansAnalyzer(n_clusters=2)

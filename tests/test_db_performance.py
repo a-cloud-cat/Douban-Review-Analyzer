@@ -1,16 +1,25 @@
 import pytest
 from src.db.base import SessionLocal, engine
-from src.db.models import Base
+from src.db.models import Base, Review
 from src.utils.db_performance import DatabasePerformanceOptimizer
 
 
 @pytest.fixture
 def db_session():
-    """创建数据库会话"""
+    """创建数据库会话，使用事务回滚确保测试不影响真实数据"""
+    # 创建表
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
-    yield db
-    db.close()
+    
+    # 开始事务但不提交
+    db.begin_nested()
+    
+    # 在测试结束时回滚，不影响真实数据
+    try:
+        yield db
+    finally:
+        db.rollback()
+        db.close()
 
 
 def test_batch_insert(db_session):

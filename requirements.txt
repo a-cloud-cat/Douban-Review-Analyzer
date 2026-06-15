@@ -28,5 +28,9 @@ scikit-learn
 joblib
 imblearn
 
+# --- 深度学习（BERT）---
+transformers>=4.30.0
+torch>=2.0.0
+
 # 测试
 pytest

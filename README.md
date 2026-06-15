@@ -70,8 +70,8 @@ Douban-Insight/
 │   └── user_dict.txt      # 分词自定义词典
 ├── models/                # 训练好的模型文件
 ├── scripts/               # 辅助执行脚本
-│   ├── reset_db.py        # 数据库重置脚本
-│   └── train_model.py     # 模型训练脚本
+│   ├── download_bert_model.py  # BERT 模型下载脚本
+│   └── test_sentiment_models.py # 情感分析模型测试脚本
 ├── tests/                 # 单元测试文件
 │   ├── test_cleaner.py    # 文本清洗测试
 │   ├── test_db_performance.py # 数据库性能测试
@@ -94,6 +94,8 @@ Douban-Insight/
 | 数据爬取 | Requests + BeautifulSoup4 | 无特殊版本限制 |
 | 中文分词 | jieba | 无特殊版本限制 |
 | 机器学习 | scikit-learn | 无特殊版本限制 |
+| 深度学习 | Hugging Face Transformers | 无特殊版本限制 |
+| 情感分析 | BERT (uer/roberta-base-finetuned-dianping-chinese) | 预训练模型 |
 | 数据可视化 | Streamlit | 无特殊版本限制 |
 
 ---
@@ -176,12 +178,13 @@ python main.py
 |------|------|----------|
 | 1 | 启动爬虫任务 | 抓取豆瓣评论，自动完成文本清洗与分词（串行爬取防反爬） |
 | 2 | 执行聚类分析 | 运行 K-Means 聚类、基于评分的情感分析，结果支持导出 CSV |
-| 3 | 启动可视化看板 | 打开 Streamlit 交互式数据页面，支持数据筛选查看 |
-| 4 | 分类分析 | 训练 SVM/逻辑回归/决策树分类模型，支持 SMOTE 非平衡处理 |
-| 5 | 重置数据库 | 清空库内所有数据（执行前会二次确认） |
-| 6 | 日志管理 | 清理、压缩项目运行日志 |
-| 7 | 运行测试 | 执行全套单元测试，校验各模块可用性 |
-| 8 | 退出程序 | 结束运行 |
+| 3 | 执行分类分析 | 训练 SVM/逻辑回归/决策树分类模型，支持 SMOTE 非平衡处理 |
+| 4 | 直接使用BERT分析 | 使用预训练 BERT 模型进行情感分析（推荐，效果更好） |
+| 5 | 启动可视化看板 | 打开 Streamlit 交互式数据页面，支持数据筛选查看与预测 |
+| 6 | 重置数据库 | 清空库内所有数据（执行前会二次确认） |
+| 7 | 日志管理 | 清理、压缩项目运行日志 |
+| 8 | 运行测试 | 执行全套单元测试，校验各模块可用性 |
+| 9 | 退出程序 | 结束运行 |
 
 ---
 
