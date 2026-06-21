@@ -226,11 +226,18 @@ def start_web_dashboard():
 
 def clear_data():
     from src.db.base import engine
-    from src.db.models import Base
-    logger.warning("正在重置数据库...")
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
-    logger.info("数据库已重置。")
+    from src.db.models import Base, Review, BookReviewStats
+    logger.warning("正在重置数据库（保留URL配置）...")
+    
+    # 只删除评论相关的表，保留URL配置表
+    Review.__table__.drop(bind=engine, checkfirst=True)
+    BookReviewStats.__table__.drop(bind=engine, checkfirst=True)
+    
+    # 重新创建表
+    Review.__table__.create(bind=engine, checkfirst=True)
+    BookReviewStats.__table__.create(bind=engine, checkfirst=True)
+    
+    logger.info("数据库已重置（URL配置表已保留）。")
 
 def run_tests():
     logger.info("开始运行测试...")
